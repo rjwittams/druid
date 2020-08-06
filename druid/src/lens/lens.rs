@@ -19,6 +19,7 @@ use std::sync::Arc;
 use crate::kurbo::Size;
 use crate::widget::prelude::*;
 use crate::Data;
+use crate::widget::WidgetWrapper;
 
 /// A lens is a datatype that gives access to a part of a larger
 /// data structure.
@@ -252,6 +253,16 @@ where
 
     fn id(&self) -> Option<WidgetId> {
         self.inner.id()
+    }
+}
+
+impl <U, L, W> WidgetWrapper<W, U> for LensWrap<U, L, W>{
+    fn wrapped(&self) -> &W {
+        &self.inner
+    }
+
+    fn wrapped_mut(&mut self) -> &mut W {
+        &mut self.inner
     }
 }
 

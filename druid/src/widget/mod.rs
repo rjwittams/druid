@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Common widgets.
+// Common widgets.
 
 mod align;
+mod binding;
 mod button;
 mod checkbox;
 mod click;
@@ -34,6 +35,7 @@ mod painter;
 mod parse;
 mod progress_bar;
 mod radio;
+mod scope;
 mod scroll;
 mod sized_box;
 mod slider;
@@ -53,6 +55,7 @@ mod widget_ext;
 pub use self::image::{Image, ImageData};
 pub use align::Align;
 pub use button::Button;
+pub use binding::{Binding, BindingHost, WidgetWrapper, LensBinding, DataToWidgetOnlyBinding, WidgetToDataOnlyBinding};
 pub use checkbox::Checkbox;
 pub use click::Click;
 pub use common::FillStrat;
@@ -69,6 +72,7 @@ pub use painter::{BackgroundBrush, Painter};
 pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
+pub use scope::{Scope};
 pub use scroll::{Scroll, ScrollTo, SCROLL_TO};
 pub use sized_box::SizedBox;
 pub use slider::Slider;
