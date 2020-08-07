@@ -11,7 +11,7 @@ struct StateHolder<F: Fn(In)->State, L:Lens<State, In>,  In, State>{
     phantom_in: PhantomData<In>
 }
 
-impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data + Debug, State: Data + Debug> StateHolder<F, L, In, State> {
+impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> StateHolder<F, L, In, State> {
     pub fn new(make_state: F, lens: L) -> Self {
         StateHolder { state: None, old_state: None, make_state, lens, phantom_in: Default::default() }
     }
@@ -93,7 +93,7 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data + Debug, State : Data + De
 }
 
 
-impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data + Debug, State: Data + Debug, W: Widget<State>>
+impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data, W: Widget<State>>
     Widget<In> for Scope<F, L, In, State, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut In, env: &Env) {
         let holder = &mut self.sh;

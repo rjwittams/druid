@@ -18,7 +18,7 @@ use std::f64::INFINITY;
 use std::time::Duration;
 
 use crate::kurbo::{Affine, Point, Rect, RoundedRect, Size, Vec2};
-use crate::{theme, Command, Selector, Target};
+use crate::{theme,  Selector};
 use crate::{
     BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
     RenderContext, TimerToken, UpdateCtx, Widget, WidgetPod,
@@ -119,9 +119,6 @@ impl ScrollbarsState {
     }
 }
 
-type SubmitCommand<'a> = dyn FnMut(Command, Target) + 'a;
-type ScrollHandler = dyn Fn(&mut SubmitCommand, &Vec2);
-
 /// A container that scrolls its contents.
 ///
 /// This container holds a single child, and uses the wheel to scroll it
@@ -134,7 +131,6 @@ pub struct Scroll<T, W> {
     scroll_offset: Vec2,
     direction: ScrollDirection,
     scrollbars: ScrollbarsState,
-    scroll_handlers: Vec<Box<ScrollHandler>>,
     scrollbars_enabled: ScrollbarsEnabled,
 }
 
@@ -176,19 +172,8 @@ impl<T, W: Widget<T>> Scroll<T, W> {
             scroll_offset: Vec2::new(0.0, 0.0),
             direction: ScrollDirection::All,
             scrollbars: ScrollbarsState::default(),
-            scroll_handlers: Vec::new(),
             scrollbars_enabled: ScrollbarsEnabled::All,
         }
-    }
-
-    // Will get called back when the scroll offsets change.
-    // This can be used to send commands to other widgets, eg to synchronise
-    // scrolling between siblings
-    pub fn add_scroll_handler(
-        &mut self,
-        scroll_handler: impl Fn(&mut SubmitCommand, &Vec2) + 'static,
-    ) {
-        self.scroll_handlers.push(Box::new(scroll_handler));
     }
 
     /// Limit scroll behavior to allow only vertical scrolling (Y-axis).
@@ -240,11 +225,11 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     /// Update the scroll.
     ///
     /// Returns `true` if the scroll has been updated.
-    pub fn scroll_by(&mut self, submit: &mut SubmitCommand, delta: Vec2, size: Size) -> bool {
-        self.scroll_to(submit, self.scroll_offset + delta, size)
+    fn scroll_by(&mut self, delta: Vec2, size: Size) -> bool {
+        self.scroll_to(self.scroll_offset + delta, size)
     }
 
-    pub fn scroll_to(&mut self, submit: &mut SubmitCommand, offset: Vec2, size: Size) -> bool {
+    pub fn scroll_to(&mut self, offset: Vec2, size: Size) -> bool {
         let offset = Vec2::new(
             offset.x.min(self.child_size.width - size.width).max(0.0),
             offset.y.min(self.child_size.height - size.height).max(0.0),
@@ -252,9 +237,6 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         if (offset - self.scroll_offset).hypot2() > 1e-12 {
             self.scroll_offset = offset;
             self.child.set_viewport_offset(offset);
-            for scroll_handler in &self.scroll_handlers {
-                scroll_handler(submit, &offset)
-            }
             true
         } else {
             false
@@ -430,7 +412,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
                             let mouse_y = event.pos.y + self.scroll_offset.y;
                             let delta = mouse_y - bounds.y0 - offset;
                             self.scroll_by(
-                                &mut |command, target| ctx.submit_command(command, target),
                                 Vec2::new(0f64, (delta / scale_y).ceil()),
                                 size,
                             );
@@ -441,7 +422,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
                             let mouse_x = event.pos.x + self.scroll_offset.x;
                             let delta = mouse_x - bounds.x0 - offset;
                             self.scroll_by(
-                                &mut |command, target| ctx.submit_command(command, target),
                                 Vec2::new((delta / scale_x).ceil(), 0f64),
                                 size,
                             );
@@ -526,7 +506,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
                     scroll_to.y.unwrap_or(self.scroll_offset.y),
                 );
                 self.scroll_to(
-                    &mut |command, target| ctx.submit_command(command, target),
                     new_pos,
                     size,
                 );
@@ -538,7 +517,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
                 if self.scroll_by(
-                    &mut |command, target| ctx.submit_command(command, target),
                     mouse.wheel_delta,
                     size,
                 ) {
@@ -590,7 +568,6 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
         let y = f64::max(self_size.height - size.height, self.scroll_offset.y);
 
         self.scroll_to(
-            &mut |command, target| ctx.submit_command(command, target),
             Vec2::new(x, y),
             self_size,
         );

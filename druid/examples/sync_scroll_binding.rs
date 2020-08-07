@@ -4,8 +4,7 @@ use druid::widget::{
     LensBindingExt, Padding, Scope, Scroll, TextBox, WidgetBindingExt,
 };
 use druid::{AppLauncher, Data, Lens, LensExt, LocalizedString, Vec2, WidgetExt, WindowDesc};
-use druid_shell::piet::{Color, Text, TextLayout, TextLayoutBuilder};
-use piet_common::FontBuilder;
+use druid::piet::{Color, Text, TextLayout, TextLayoutBuilder, FontBuilder};
 use std::marker::PhantomData;
 
 #[derive(Data, Lens, Debug, Clone)]
@@ -138,7 +137,7 @@ impl <S, T, L :Lens<S, Vec2>, W: Widget<T>> Binding<S, Scroll<T, W>> for Binding
         ctx: &mut UpdateCtx,
     ) {
         self.data_lens.with(data, |offsets|{
-            controlled.scroll_to(&mut |_command, _target| {}, offsets.clone(), ctx.size())
+            controlled.scroll_to( offsets.clone(), ctx.size())
         });
         ctx.request_paint();
     }
@@ -185,8 +184,6 @@ fn build_widget() -> impl Widget<OuterState> {
 
 fn build_inner_widget() -> impl Widget<InnerState> {
     let mut row = Flex::row();
-
-
 
     let lensed = LensedWidget::new("Arial".into(), "Stuff".into())
         .lens(InnerState::text)

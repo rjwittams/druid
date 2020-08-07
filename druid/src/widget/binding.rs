@@ -2,12 +2,15 @@ use crate::{BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
             LifeCycleCtx, PaintCtx, Selector, Size, UpdateCtx, Widget, Lens};
 use std::marker::PhantomData;
 
-pub trait WidgetWrapper<Wrapped, T> {
+/// This trait indicates that a class is a wrapper of another widget that may have API you wish to access.
+/// Used by BindingHost to "reach inside" things like LensWrapped in order to find the right widget to control,
+/// given the bindings that it has.
+pub trait WidgetWrapper<Wrapped, T>{
     fn wrapped(&self) -> &Wrapped;
     fn wrapped_mut(&mut self) -> &mut Wrapped;
 }
 
-
+/// A widget "wraps" itself.
 impl <T, W: Widget<T>> WidgetWrapper<W, T> for W{
     fn wrapped(&self) -> &W {
         self
@@ -19,18 +22,29 @@ impl <T, W: Widget<T>> WidgetWrapper<W, T> for W{
 }
 
 
-// This is a two way binding between some data, and something it is controlling.
-// Usually this will be synchronising one bit of information in each,
-// eg one field of T bound to one 'property' of a controlled Widget.
+/// This is a two way binding between some data, and something it is controlling.
+/// Usually this will be synchronising one bit of information in each,
+/// eg one field of T bound to one 'property' of a controlled Widget.
 pub trait Binding<T, Controlled> {
+    /// The type of built up change from internal widget state that needs to be applied to the data.
     type Change;
+
+    /// Take the bound value from the data T and apply it to the controlled item (usually a widget)
+    /// This will occur during update, as that is when data has changed.
     fn apply_data_to_controlled(&self, data: &T, controlled: &mut Controlled, ctx: &mut UpdateCtx);
+
+    /// Mutate the passed in Change option to indicate to the BindingHost that an update to the data will be needed.
+    /// This could get called from any Widget method in BindingHost, and allows changes to data to be queued up for the next event.
     fn append_change_required(
         &self,
         controlled: &Controlled,
         data: &T,
         change: &mut Option<Self::Change>,
     );
+
+    /// This will take the built up Change from internal widget state, and apply it to the data.
+    /// If it is possible to read that change directly from the controlled item, the Change type can be () and the Some-ness of it alone
+    /// will be enough to trigger the change to be applied.
     fn apply_change_to_data(&self, controlled: &Controlled, data: &mut T, change: Self::Change, ctx: &mut EventCtx);
 }
 
@@ -105,6 +119,7 @@ impl <T, Controlled, B: Binding<T, Controlled>> Binding<T, Controlled> for Widge
     }
 }
 
+/// This binds two lenses that evaluate to the same type together.
 pub struct LensBinding<T, Controlled, Prop, LT: Lens<T, Prop>, LC: Lens<Controlled, Prop>>{
     lens_from_data: LT,
     lens_from_controlled: LC,
