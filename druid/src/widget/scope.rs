@@ -4,6 +4,7 @@ use crate::{
 };
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use crate::widget::BindableAccess;
 
 struct StateHolder<F: Fn(In) -> State, L: Lens<State, In>, In, State> {
     state: Option<State>,
@@ -91,12 +92,13 @@ pub struct Scope<F: Fn(In) -> State, L: Lens<State, In>, In, State, W: Widget<St
     inner: W,
 }
 
-impl <F: Fn(In)->State, L:Lens<State, In>,  In, State, W: Widget<State>> WidgetWrapper<W, State> for Scope<F, L, In, State, W>{
-    fn wrapped(&self) -> &W {
+impl <F: Fn(In)->State, L:Lens<State, In>,  In, State, W: Widget<State>> BindableAccess  for Scope<F, L, In, State, W>{
+    type Wrapped = W;
+    fn bindable(&self) -> &W {
         &self.inner
     }
 
-    fn wrapped_mut(&mut self) -> &mut W {
+    fn bindable_mut(&mut self) -> &mut W {
         &mut self.inner
     }
 }
