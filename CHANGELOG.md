@@ -41,7 +41,8 @@ You can find its changes [documented below](#060---2020-06-01).
 - X11: Support timers. ([#1096] by [@psychon])
 - `EnvScope` now also updates the `Env` during `Widget::lifecycle`. ([#1100] by [@finnerale])
 - `WidgetExt::debug_widget_id` and `debug_paint_layout` now also apply to the widget they are called on. ([#1100] by [@finnerale])
-- X11: Fix X11 errors caused by destroyed windows ([#1103] by [@jneem])
+- X11: Fix X11 errors caused by destroyed windows. ([#1103] by [@jneem])
+- `ViewSwitcher` now skips the update after switching widgets. ([#1113] by [@finnerale])
 
 ### Visual
 
@@ -136,6 +137,7 @@ This means that druid no longer requires cairo on macOS and uses Core Graphics i
 - The `WindowHandle::get_dpi` method got replaced by `WindowHandle::get_scale`. ([#904] by [@xStrom])
 - The `WinHandler::size` method now gets a `Size` in display points. ([#904] by [@xStrom])
 - Standardized the type returned by the contexts' `text` methods. ([#996] by [@cmyr])
+- `ViewSwitcher` uses `Data` type constraint instead of `PartialEq`. ([#1112] by [@justinmoon])
 
 ### Removed
 
@@ -257,6 +259,7 @@ Last release without a changelog :(
 [@vkahl]: https://github.com/vkahl
 [@psychon]: https://github.com/psychon
 [@sysint64]: https://github.com/sysint64
+[@justinmoon]: https://github.com/justinmoon
 
 [#599]: https://github.com/linebender/druid/pull/599
 [#611]: https://github.com/linebender/druid/pull/611
