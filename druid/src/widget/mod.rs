@@ -54,9 +54,12 @@ mod widget_ext;
 
 pub use self::image::{Image, ImageData};
 pub use align::Align;
+pub use binding::{
+    Bindable, BindableAccess, BindableProperty, Binding, BindingExt, BindingHost,
+    DataToWidgetOnlyBinding, LensBinding, LensBindingExt, LensPropBinding, WidgetBindingExt,
+    WidgetToDataOnlyBinding,
+};
 pub use button::Button;
-pub use binding::{Binding, BindingHost, WidgetWrapper, LensBinding, DataToWidgetOnlyBinding,
-                  WidgetToDataOnlyBinding, LensBindingExt, WidgetBindingExt, BindingExt};
 pub use checkbox::Checkbox;
 pub use click::Click;
 pub use common::FillStrat;
@@ -64,7 +67,7 @@ pub use container::Container;
 pub use controller::{Controller, ControllerHost};
 pub use either::Either;
 pub use env_scope::EnvScope;
-pub use flex::{CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
+pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
 pub use identity_wrapper::IdentityWrapper;
 pub use label::{Label, LabelText};
 pub use list::{List, ListIter};
@@ -73,8 +76,8 @@ pub use painter::{BackgroundBrush, Painter};
 pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
-pub use scope::{Scope};
-pub use scroll::{Scroll, ScrollTo, SCROLL_TO};
+pub use scope::Scope;
+pub use scroll::{Scroll, ScrollTo, ScrollToProperty, SCROLL_TO};
 pub use sized_box::SizedBox;
 pub use slider::Slider;
 pub use spinner::Spinner;

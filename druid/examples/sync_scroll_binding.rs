@@ -1,11 +1,10 @@
+use druid::piet::{Color, FontBuilder, Text, TextLayout, TextLayoutBuilder};
 use druid::widget::prelude::*;
 use druid::widget::{
-    Binding, BindingExt, Flex, Label,
-    LensBindingExt, Padding, Scope, Scroll, TextBox, WidgetBindingExt,
+    Axis, Bindable, BindingExt, Flex, Label, LensBindingExt, Padding, Scope, Scroll,
+    ScrollToProperty, TextBox, WidgetBindingExt,
 };
-use druid::{AppLauncher, Data, Lens, LensExt, LocalizedString, Vec2, WidgetExt, WindowDesc};
-use druid::piet::{Color, Text, TextLayout, TextLayoutBuilder, FontBuilder};
-use std::marker::PhantomData;
+use druid::{AppLauncher, Data, Lens, LocalizedString, WidgetExt, WindowDesc};
 
 #[derive(Data, Lens, Debug, Clone)]
 struct OuterState {
@@ -23,7 +22,7 @@ impl OuterState {
 struct InnerState {
     text: String,
     font: String,
-    offsets: Vec2,
+    scroll_y: f64,
 }
 
 impl InnerState {
@@ -31,7 +30,7 @@ impl InnerState {
         InnerState {
             text,
             font: "Courier".into(),
-            offsets: Default::default(),
+            scroll_y: 0.0,
         }
     }
 }
@@ -53,6 +52,8 @@ struct LensedWidget {
     text: String,
 }
 
+impl Bindable for LensedWidget {}
+
 impl LensedWidget {
     pub fn new(font_name: String, text: String) -> Self {
         LensedWidget { font_name, text }
@@ -62,7 +63,14 @@ impl LensedWidget {
 impl Widget<String> for LensedWidget {
     fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut String, _env: &Env) {}
 
-    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &String, _env: &Env) {}
+    fn lifecycle(
+        &mut self,
+        _ctx: &mut LifeCycleCtx,
+        _event: &LifeCycle,
+        _data: &String,
+        _env: &Env,
+    ) {
+    }
 
     fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &String, _data: &String, _env: &Env) {}
 
@@ -73,7 +81,7 @@ impl Widget<String> for LensedWidget {
         _data: &String,
         _env: &Env,
     ) -> Size {
-        bc.constrain(Size::new(300.0, 100.0))
+        bc.constrain(Size::new(200.0, 100.0))
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &String, _env: &Env) {
@@ -111,75 +119,19 @@ impl Widget<String> for LensedWidget {
     }
 }
 
-struct BindingScrollOffsets<S, T, L :Lens<S, Vec2> > {
-    data_lens: L,
-    phantom_s: PhantomData<S>,
-    phantom_t: PhantomData<T>,
-}
-
-impl<S, T, L :Lens<S, Vec2>> BindingScrollOffsets<S, T, L> {
-    pub fn new(data_lens: L) -> Self {
-        BindingScrollOffsets {
-            data_lens,
-            phantom_s: Default::default(),
-            phantom_t: Default::default(),
-        }
-    }
-}
-
-impl <S, T, L :Lens<S, Vec2>, W: Widget<T>> Binding<S, Scroll<T, W>> for BindingScrollOffsets<S, T, L> {
-    type Change = (); // No point copying the offsets in here, they are cheap to get off the scroll
-
-    fn apply_data_to_controlled(
-        &self,
-        data: &S,
-        controlled: &mut Scroll<T, W>,
-        ctx: &mut UpdateCtx,
-    ) {
-        self.data_lens.with(data, |offsets|{
-            controlled.scroll_to( offsets.clone(), ctx.size())
-        });
-        ctx.request_paint();
-    }
-
-    fn append_change_required(
-        &self,
-        controlled: &Scroll<T, W>,
-        data: &S,
-        change: &mut Option<Self::Change>,
-    ) {
-        self.data_lens.with(data, |offsets| {
-            if !controlled.offset().same(offsets) {
-                *change = Some(())
-            }
-        });
-    }
-
-    fn apply_change_to_data(
-        &self,
-        controlled: &Scroll<T, W>,
-        data: &mut S,
-        _change: Self::Change,
-        _ctx: &mut EventCtx,
-    ) {
-        self.data_lens.with_mut( data, |offsets| {
-            *offsets = controlled.offset()
-        });
-    }
-}
-
 fn build_widget() -> impl Widget<OuterState> {
     let row = Flex::row()
         .with_child(TextBox::new().lens(OuterState::name))
         .with_child(TextBox::new().lens(OuterState::job));
 
-    let scope =
-        Scope::new(InnerState::new, // How to construct the inner state from its input
-                   InnerState::text,      // How to extract the input back out of the inner state
-                   build_inner_widget()  // Widgets operating on inner state
-        ).lens(OuterState::job);
+    let scope = Scope::new(
+        InnerState::new,      // How to construct the inner state from its input
+        InnerState::text,     // How to extract the input back out of the inner state
+        build_inner_widget(), // Widgets operating on inner state
+    )
+    .lens(OuterState::job);
 
-    row.with_child(scope)
+    row.with_flex_child(scope, 1.)
 }
 
 fn build_inner_widget() -> impl Widget<InnerState> {
@@ -189,10 +141,11 @@ fn build_inner_widget() -> impl Widget<InnerState> {
         .lens(InnerState::text)
         .binding(
             // Bindings are bi directional- A lens from Data->Prop,  Prop<-Widget.
-            InnerState::font.bind(LensedWidget::font_name)
+            InnerState::font
+                .bind_lens(LensedWidget::font_name)
                 // And combines bindings - they are syncing different props
-                .and(InnerState::text.bind(LensedWidget::text)
-                    .forward()), // choose one direction or both
+                .and(InnerState::text.bind_lens(LensedWidget::text).forward()),
+            // choose one direction, both ways is default
         );
 
     row.add_child(
@@ -201,22 +154,26 @@ fn build_inner_widget() -> impl Widget<InnerState> {
             .with_child(lensed),
     );
 
+    let follower = Scroll::new(make_col(1)).lens(InnerState::text).binding(
+        InnerState::scroll_y
+            .bind(ScrollToProperty::new(Axis::Vertical))
+            .forward(),
+    );
 
-    let follower = Scroll::new(make_col(1))
-        .lens(InnerState::text)
-        // This is a different idea for how to do a one way binding.
-        .binding(BindingScrollOffsets::new(InnerState::offsets.read_only() )); //
-    row.add_child(follower);
+    row.add_flex_child(follower, 0.5);
 
+    // You can have a series of wrappers before the binding, and it will reach inside and get
+    // the nearest Bindable widget to control. The wrappers must trivially implement BindableAccess
     let leader = Scroll::new(make_col(0))
+        .with_id(WidgetId::next())
         .lens(InnerState::text)
-        .binding(BindingScrollOffsets::new(InnerState::offsets));
-    row.add_child(leader);
+        .binding(InnerState::scroll_y.bind(ScrollToProperty::new(Axis::Vertical)));
+    row.add_flex_child(leader, 0.5);
 
     row
 }
 
-fn make_col(i: i32) -> Flex<String> {
+fn make_col(i: i32) -> impl Widget<String> {
     let mut col = Flex::column();
 
     for j in 0..30 {

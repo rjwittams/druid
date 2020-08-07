@@ -18,8 +18,8 @@ use std::sync::Arc;
 
 use crate::kurbo::Size;
 use crate::widget::prelude::*;
+use crate::widget::BindableAccess;
 use crate::Data;
-use crate::widget::WidgetWrapper;
 
 /// A lens is a datatype that gives access to a part of a larger
 /// data structure.
@@ -162,15 +162,6 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
     {
         InArc::new(self)
     }
-
-    fn read_only(self) -> ReadOnly<Self>
-        where
-            A: Clone,
-            B: Data,
-            Self: Sized,
-    {
-        ReadOnly::new(self)
-    }
 }
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExt<A, B> for T {}
@@ -265,13 +256,13 @@ where
     }
 }
 
-impl <U, L, W> WidgetWrapper<W, U> for LensWrap<U, L, W>{
-    fn wrapped(&self) -> &W {
-        &self.inner
+impl<U, L, W: BindableAccess> BindableAccess for LensWrap<U, L, W> {
+    type Wrapped = W::Wrapped;
+    fn bindable(&self) -> &Self::Wrapped {
+        self.inner.bindable()
     }
-
-    fn wrapped_mut(&mut self) -> &mut W {
-        &mut self.inner
+    fn bindable_mut(&mut self) -> &mut Self::Wrapped {
+        self.inner.bindable_mut()
     }
 }
 
@@ -524,37 +515,5 @@ where
             self.inner.with_mut(Arc::make_mut(data), |x| *x = temp);
         }
         v
-    }
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct ReadOnly<L>{
-    inner:L
-}
-
-impl<L> ReadOnly<L> {
-    pub fn new<A, B>(inner: L) -> Self
-        where
-            A: Clone,
-            B: Data,
-            L: Lens<A, B>,
-    {
-        Self { inner }
-    }
-}
-
-impl<A, B, L> Lens<A, B> for ReadOnly<L>
-    where
-        A: Clone,
-        B: Data,
-        L: Lens<A, B>,
-{
-    fn with<V, F: FnOnce(&B) -> V>(&self, data: &A, f: F) -> V {
-        self.inner.with(data, f)
-    }
-
-    fn with_mut<V, F: FnOnce(&mut B) -> V>(&self, data: &mut A, f: F) -> V {
-        // Dispose of changes done to a clone
-        self.inner.with_mut(&mut data.clone(), f)
     }
 }

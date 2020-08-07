@@ -15,6 +15,7 @@
 //! A widget that provides an explicit identity to a child.
 
 use crate::kurbo::Size;
+use crate::widget::BindableAccess;
 use crate::{
     BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
     UpdateCtx, Widget, WidgetId,
@@ -56,5 +57,17 @@ impl<T: Data, W: Widget<T>> Widget<T> for IdentityWrapper<W> {
 
     fn id(&self) -> Option<WidgetId> {
         Some(self.id)
+    }
+}
+
+impl<W> BindableAccess for IdentityWrapper<W> {
+    type Wrapped = W;
+
+    fn bindable(&self) -> &Self::Wrapped {
+        &self.inner
+    }
+
+    fn bindable_mut(&mut self) -> &mut Self::Wrapped {
+        &mut self.inner
     }
 }
