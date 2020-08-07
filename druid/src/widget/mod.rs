@@ -55,7 +55,8 @@ mod widget_ext;
 pub use self::image::{Image, ImageData};
 pub use align::Align;
 pub use button::Button;
-pub use binding::{Binding, BindingHost, WidgetWrapper, LensBinding, DataToWidgetOnlyBinding, WidgetToDataOnlyBinding};
+pub use binding::{Binding, BindingHost, WidgetWrapper, LensBinding, DataToWidgetOnlyBinding,
+                  WidgetToDataOnlyBinding, LensBindingExt, WidgetBindingExt, BindingExt};
 pub use checkbox::Checkbox;
 pub use click::Click;
 pub use common::FillStrat;

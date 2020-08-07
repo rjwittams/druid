@@ -243,6 +243,8 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     fn boxed(self) -> Box<dyn Widget<T>> {
         Box::new(self)
     }
+
+
 }
 
 impl<T: Data, W: Widget<T> + 'static> WidgetExt<T> for W {}

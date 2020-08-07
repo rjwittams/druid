@@ -162,6 +162,15 @@ pub trait LensExt<A: ?Sized, B: ?Sized>: Lens<A, B> {
     {
         InArc::new(self)
     }
+
+    fn read_only(self) -> ReadOnly<Self>
+        where
+            A: Clone,
+            B: Data,
+            Self: Sized,
+    {
+        ReadOnly::new(self)
+    }
 }
 
 impl<A: ?Sized, B: ?Sized, T: Lens<A, B>> LensExt<A, B> for T {}
@@ -515,5 +524,37 @@ where
             self.inner.with_mut(Arc::make_mut(data), |x| *x = temp);
         }
         v
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ReadOnly<L>{
+    inner:L
+}
+
+impl<L> ReadOnly<L> {
+    pub fn new<A, B>(inner: L) -> Self
+        where
+            A: Clone,
+            B: Data,
+            L: Lens<A, B>,
+    {
+        Self { inner }
+    }
+}
+
+impl<A, B, L> Lens<A, B> for ReadOnly<L>
+    where
+        A: Clone,
+        B: Data,
+        L: Lens<A, B>,
+{
+    fn with<V, F: FnOnce(&B) -> V>(&self, data: &A, f: F) -> V {
+        self.inner.with(data, f)
+    }
+
+    fn with_mut<V, F: FnOnce(&mut B) -> V>(&self, data: &mut A, f: F) -> V {
+        // Dispose of changes done to a clone
+        self.inner.with_mut(&mut data.clone(), f)
     }
 }

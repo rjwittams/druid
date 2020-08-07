@@ -78,11 +78,11 @@ impl <T, Controlled, B: Binding<T, Controlled>> Binding<T, Controlled> for DataT
         self.0.apply_data_to_controlled(data, controlled, ctx);
     }
 
-    fn append_change_required(&self, controlled: &Controlled, data: &T, change: &mut Option<Self::Change>) {
+    fn append_change_required(&self, _controlled: &Controlled, _data: &T, _change: &mut Option<Self::Change>) {
 
     }
 
-    fn apply_change_to_data(&self, controlled: &Controlled, data: &mut T, change: Self::Change, ctx: &mut EventCtx) {
+    fn apply_change_to_data(&self, _controlled: &Controlled, _data: &mut T, _change: Self::Change, _ctx: &mut EventCtx) {
 
     }
 }
@@ -92,7 +92,7 @@ pub struct WidgetToDataOnlyBinding<B>(B);
 impl <T, Controlled, B: Binding<T, Controlled>> Binding<T, Controlled> for WidgetToDataOnlyBinding<B> {
     type Change = B::Change;
 
-    fn apply_data_to_controlled(&self, data: &T, controlled: &mut Controlled, ctx: &mut UpdateCtx) {
+    fn apply_data_to_controlled(&self, _data: &T, _controlled: &mut Controlled, _ctx: &mut UpdateCtx) {
 
     }
 
@@ -139,10 +139,45 @@ impl <T, Controlled, Prop: Data, LT: Lens<T, Prop>, LC: Lens<Controlled, Prop>> 
         })
     }
 
-    fn apply_change_to_data(&self, controlled: &Controlled, data: &mut T, change: Self::Change, ctx: &mut EventCtx) {
+    fn apply_change_to_data(&self, _controlled: &Controlled, data: &mut T, change: Self::Change, _ctx: &mut EventCtx) {
         self.lens_from_data.with_mut(data , |field| *field = change)
     }
 }
+
+pub trait LensBindingExt<T, U, M: Lens<T, U>> {
+    fn bind<C, L: Lens<C,U>>(self, other: L)->LensBinding<T, C, U, M, L>;
+}
+
+impl <T, U, M : Lens<T, U> > LensBindingExt<T, U, M> for M {
+    fn bind<C, L: Lens<C, U>>(self, other: L)->LensBinding<T, C, U, M, L> {
+        LensBinding::new(self, other)
+    }
+}
+
+pub trait WidgetBindingExt<T, U,  Wrapped: Widget<U>> : Widget<T> + Sized + WidgetWrapper<Wrapped, U> {
+    fn binding<B:Binding<T, Wrapped>>(self, binding: B) -> BindingHost<T, U, Self, Wrapped, B> {
+        BindingHost::new(self, binding)
+    }
+}
+
+impl  <T, U,  Wrapped: Widget<U>, W> WidgetBindingExt<T, U, Wrapped> for W
+where W : Widget<T> + Sized + WidgetWrapper<Wrapped, U>{
+
+}
+
+pub trait BindingExt<T, Controlled>: Binding<T, Controlled> + Sized {
+    fn and<B: Binding<T, Controlled>>(self, other: B) -> (Self, B) {
+        (self, other)
+    }
+    fn back(self) -> WidgetToDataOnlyBinding<Self> {
+        WidgetToDataOnlyBinding(self)
+    }
+    fn forward(self) -> DataToWidgetOnlyBinding<Self>{
+        DataToWidgetOnlyBinding(self)
+    }
+}
+
+impl <T, Controlled, B: Binding<T, Controlled> + Sized > BindingExt<T, Controlled> for B{}
 
 pub struct BindingHost<
     T,

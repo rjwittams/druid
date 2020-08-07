@@ -117,7 +117,7 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data + Debug, State: Data + Deb
         holder.with_state(data, |state| inner.lifecycle(ctx, event, state, env))
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &In, data: &In, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &In, data: &In, env: &Env) {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
 
