@@ -1,10 +1,10 @@
+use crate::widget::BindableAccess;
 use crate::{
     BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
     Size, UpdateCtx, Widget,
 };
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use crate::widget::BindableAccess;
 
 struct StateHolder<F: Fn(In) -> State, L: Lens<State, In>, In, State> {
     state: Option<State>,
@@ -92,7 +92,9 @@ pub struct Scope<F: Fn(In) -> State, L: Lens<State, In>, In, State, W: Widget<St
     inner: W,
 }
 
-impl <F: Fn(In)->State, L:Lens<State, In>,  In, State, W: Widget<State>> BindableAccess  for Scope<F, L, In, State, W>{
+impl<F: Fn(In) -> State, L: Lens<State, In>, In, State, W: Widget<State>> BindableAccess
+    for Scope<F, L, In, State, W>
+{
     type Wrapped = W;
     fn bindable(&self) -> &W {
         &self.inner
@@ -103,13 +105,8 @@ impl <F: Fn(In)->State, L:Lens<State, In>,  In, State, W: Widget<State>> Bindabl
     }
 }
 
-impl<
-        F: Fn(In) -> State,
-        L: Lens<State, In>,
-        In: Data + Debug,
-        State: Data + Debug,
-        W: Widget<State>,
-    > Scope<F, L, In, State, W>
+impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data, W: Widget<State>>
+    Scope<F, L, In, State, W>
 {
     pub fn new(make_state: F, lens: L, inner: W) -> Self {
         Scope {
