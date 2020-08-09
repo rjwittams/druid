@@ -77,7 +77,7 @@ pub use painter::{BackgroundBrush, Painter};
 pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
-pub use scope::Scope;
+pub use scope::{Scope, ScopePolicy, DefaultScopePolicy};
 pub use scroll::{Scroll, ScrollTo, ScrollToProperty, SCROLL_TO};
 pub use sized_box::SizedBox;
 pub use slider::Slider;
@@ -87,7 +87,7 @@ pub use stepper::Stepper;
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
-pub use tabs::{TabBody, TabBuilder, TabState, Tabs};
+pub use tabs::{TabsBody, Tabs, TabsState};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]

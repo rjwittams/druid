@@ -1,6 +1,4 @@
-use druid::widget::{
-    Button, CrossAxisAlignment, Flex, Label, TabBuilder
-};
+use druid::widget::{Button, CrossAxisAlignment, Flex, Label, Tabs};
 use druid::{
     AppLauncher, Data, Env, Lens, Widget, WidgetExt, WindowDesc
 };
@@ -33,6 +31,7 @@ pub fn main() {
 
     // start the application
     AppLauncher::with_window(main_window)
+        .use_simple_logger()
         .launch(initial_state)
         .expect("Failed to launch application");
 }
@@ -51,8 +50,7 @@ fn build_root_widget() -> impl Widget<AppState> {
         }))
         .lens(AppState::advanced);
 
-    TabBuilder::new()
+    Tabs::new()
         .with_tab("Basic", Label::new("Basic kind of stuff"))
         .with_tab("Advanced", adv)
-        .build()
 }

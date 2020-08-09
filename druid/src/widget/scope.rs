@@ -1,146 +1,195 @@
 use crate::{
-    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
-    Size, UpdateCtx, Widget,
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx,
+    PaintCtx, Size, UpdateCtx, Widget,
 };
 use std::marker::PhantomData;
 
-struct StateHolder<F: Fn(In) -> State, L: Lens<State, In>, In, State> {
-    state: Option<State>,
-    old_state: Option<State>,
+pub trait ScopePolicy {
+    type In: Data;
+    type State: Data;
+
+    // Make a new state from the input
+    fn default_state(&self, inner:&Self::In)->Self::State;
+    // Replace the input we have with a new one from outside
+    fn replace_in_state(&self, state: &mut Self::State, inner: &Self::In);
+    // Take the modifications we have made and write them back
+    // to our input.
+    fn write_back_input(&self, state: &Self::State, inner: &mut Self::In);
+}
+
+pub struct DefaultScopePolicy<F: Fn(In) -> State, L: Lens<State, In>, In, State>{
     make_state: F,
     lens: L,
     phantom_in: PhantomData<In>,
+    phantom_state: PhantomData<State>
 }
 
-impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> StateHolder<F, L, In, State> {
+impl<F: Fn(In) -> State, L: Lens<State, In>, In, State> DefaultScopePolicy<F, L, In, State> {
     pub fn new(make_state: F, lens: L) -> Self {
+        DefaultScopePolicy { make_state, lens, phantom_in: Default::default(), phantom_state: Default::default() }
+    }
+}
+
+impl <F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> ScopePolicy for DefaultScopePolicy<F, L, In, State>{
+    type In = In;
+    type State = State;
+
+
+    fn default_state(&self, inner:&In)->State{
+        (self.make_state)(inner.clone())
+    }
+    fn replace_in_state(&self, state: &mut State, data: &In){
+        self.lens.with_mut(state, |inner| {
+            if !inner.same(&data) {
+                *inner = data.clone()
+            }
+        });
+    }
+    fn write_back_input(&self, state: &State, data: &mut In){
+        self.lens.with(state, |inner| {
+            if !inner.same(&data) {
+                *data = inner.clone();
+            }
+        })
+
+    }
+}
+
+struct StateHolder<SP: ScopePolicy> {
+    state: Option<SP::State>,
+    old_state: Option<SP::State>,
+    scope_policy: SP
+}
+
+impl<SP: ScopePolicy> StateHolder<SP> {
+    pub fn new(state_access: SP) -> Self {
         StateHolder {
             state: None,
             old_state: None,
-            make_state,
-            lens,
-            phantom_in: Default::default(),
+            scope_policy: state_access
         }
     }
 
-    fn ensure_state(&mut self, data: &In) {
-        if self.state.is_some() {
-            // This check is required as the borrow checker thinks the &mut borrows for the else branch too
-            if let Some(state) = &mut self.state {
-                self.lens.with_mut(state, |inner| {
-                    if !inner.same(&data) {
-                        *inner = data.clone()
-                    }
-                });
-            } else {
-                panic!("Unreachable: satisfy borrow checker");
-            }
-        } else {
-            self.state = Some((self.make_state)(data.clone()));
+    fn ensure_state(&mut self, data: &SP::In) {
+        match &mut self.state {
+            Some(state) => self.scope_policy.replace_in_state(state, data),
+            None => self.state = Some(self.scope_policy.default_state(data)),
         }
     }
 
-    fn with_state<V>(&mut self, data: &In, mut f: impl FnMut(&State) -> V) -> V {
+    fn with_state<V>(&mut self, data: &SP::In, mut f: impl FnMut(&SP::State) -> V) -> V {
         self.ensure_state(data);
         f(self.state.as_ref().unwrap())
     }
 
-    fn with_old_state_and_state<V>(
+    fn call_if_state_changed(
         &mut self,
-        data: &In,
-        mut f: impl FnMut(&State, &State) -> V,
-    ) -> V {
+        data: &SP::In,
+        mut f: impl FnMut(&SP::State, &SP::State),
+    ){
         self.ensure_state(data);
         let state = self.state.as_ref().unwrap();
-        let (os, ret) = match &mut self.old_state {
-            Some(os) => (state.clone(), f(os, state)),
+        match &mut self.old_state {
+            Some(os) => {
+                if !os.same(state) {
+                    f(os, state);
+                    log::info!("Cloning state");
+                    *os = state.clone()
+                }
+            },
             None => {
-                let temp_old_state = state.clone();
-                let ret = f(&temp_old_state, state);
-                (temp_old_state, ret)
+                 let temp_old_state = state.clone();
+                 log::info!("Cloning state");
+                 f(&temp_old_state, state);
+                 self.old_state = Some(temp_old_state)
             }
-        };
-        self.old_state = Some(os);
-        ret
+        }
     }
 
-    fn with_state_mut<V>(&mut self, data: &In, mut f: impl FnMut(&mut State) -> V) -> V {
+    fn with_state_mut<V>(&mut self, data: &SP::In, mut f: impl FnMut(&mut SP::State) -> V) -> V {
         self.ensure_state(data);
         f(self.state.as_mut().unwrap())
     }
 
-    fn write_back_input(&mut self, data: &mut In) {
-        //log::info!("Writing back state value {:?} to Input {:?}" , self.state, data);
+    fn write_back_input(&mut self, data: &mut SP::In) {
         if let Some(state) = &self.state {
-            self.lens.with(state, |inner| {
-                if !inner.same(&data) {
-                    *data = inner.clone()
-                }
+            self.scope_policy.write_back_input(state, data);
+        }
+    }
+
+}
+
+pub struct Scope<SP: ScopePolicy, W: Widget<SP::State>> {
+    sh: StateHolder<SP>, // These parts are bundled away from inner in order to help the borrow checker.
+    inner: W,
+    widget_added: bool
+}
+
+impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W>
+{
+    pub fn new(state_access: SP, inner: W) -> Self {
+        Scope {
+            sh: StateHolder::new(state_access),
+            inner,
+            widget_added: false
+        }
+    }
+}
+
+impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In>
+    for Scope<SP, W>
+{
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SP::In, env: &Env) {
+        if self.widget_added {
+            let holder = &mut self.sh;
+            let inner = &mut self.inner;
+            holder.with_state_mut(data, |state| inner.event(ctx, event, state, env));
+            holder.write_back_input(data);
+
+            // Because our input data may not have changed,
+            // we have to call update - widget pod will not trigger it.
+            // Effectively we are a contained app
+
+            // It is safe to update children now
+
+            let mut update_ctx = UpdateCtx {
+                state: ctx.state,
+                widget_state: ctx.widget_state,
+            };
+
+
+            holder.call_if_state_changed(data, |old_state, state| {
+                inner.update(&mut update_ctx, &old_state, state, env)
             })
         }
     }
-}
 
-pub struct Scope<F: Fn(In) -> State, L: Lens<State, In>, In, State, W: Widget<State>> {
-    sh: StateHolder<F, L, In, State>, // These parts are bundled away from inner in order to help the borrow checker.
-    inner: W,
-}
-
-impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data, W: Widget<State>>
-    Scope<F, L, In, State, W>
-{
-    pub fn new(make_state: F, lens: L, inner: W) -> Self {
-        Scope {
-            sh: StateHolder::new(make_state, lens),
-            inner,
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SP::In, env: &Env) {
+        let holder = &mut self.sh;
+        let inner = &mut self.inner;
+        eprintln!("About to update child after lc {:?}", &event);
+        holder.with_state(data, |state| inner.lifecycle(ctx, event, state, env));
+        if let LifeCycle::WidgetAdded = event {
+            self.widget_added = true;
         }
     }
-}
 
-impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data, W: Widget<State>> Widget<In>
-    for Scope<F, L, In, State, W>
-{
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut In, env: &Env) {
-        let holder = &mut self.sh;
-        let inner = &mut self.inner;
-        holder.with_state_mut(data, |state| inner.event(ctx, event, state, env));
-        holder.write_back_input(data);
-
-        // Because our input data may not have changed,
-        // we have to call update - widget pod will not trigger it.
-        // Effectively we are a contained app
-        let mut update_ctx = UpdateCtx {
-            state: ctx.state,
-            widget_state: ctx.widget_state,
-        };
-
-        holder.with_old_state_and_state(data, |old_state, state| {
-            inner.update(&mut update_ctx, &old_state, state, env)
-        })
-    }
-
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &In, env: &Env) {
-        let holder = &mut self.sh;
-        let inner = &mut self.inner;
-        holder.with_state(data, |state| inner.lifecycle(ctx, event, state, env))
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &In, data: &In, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &SP::In, data: &SP::In, env: &Env) {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
 
-        holder.with_old_state_and_state(data, |old_state, state| {
+        holder.call_if_state_changed(data, |old_state, state| {
             inner.update(ctx, &old_state, state, env)
         });
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &In, env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &SP::In, env: &Env) -> Size {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
         holder.with_state(data, |state| inner.layout(ctx, bc, state, env))
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &In, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &SP::In, env: &Env) {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
         holder.with_state(data, |state| inner.paint(ctx, state, env));
