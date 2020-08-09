@@ -1,9 +1,7 @@
-use crate::widget::BindableAccess;
 use crate::{
     BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
     Size, UpdateCtx, Widget,
 };
-use std::fmt::Debug;
 use std::marker::PhantomData;
 
 struct StateHolder<F: Fn(In) -> State, L: Lens<State, In>, In, State> {
@@ -39,7 +37,6 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> StateHolder<
             }
         } else {
             self.state = Some((self.make_state)(data.clone()));
-            // Safety - we just made sure its not none
         }
     }
 
@@ -54,28 +51,25 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> StateHolder<
         mut f: impl FnMut(&State, &State) -> V,
     ) -> V {
         self.ensure_state(data);
-        let mut cloned = false;
-        if self.old_state.is_none() {
-            self.old_state = Some(self.state.as_ref().unwrap().clone());
-            cloned = true;
-        }
-        let ret = f(
-            self.old_state.as_ref().unwrap(),
-            self.state.as_ref().unwrap(),
-        );
-        if !cloned {
-            self.old_state = Some(self.state.as_ref().unwrap().clone());
-        }
+        let state = self.state.as_ref().unwrap();
+        let (os, ret) = match &mut self.old_state {
+            Some(os) => (state.clone(), f(os, state)),
+            None => {
+                let temp_old_state = state.clone();
+                let ret = f(&temp_old_state, state);
+                (temp_old_state, ret)
+            }
+        };
+        self.old_state = Some(os);
         ret
     }
 
     fn with_state_mut<V>(&mut self, data: &In, mut f: impl FnMut(&mut State) -> V) -> V {
         self.ensure_state(data);
-        let ret = f(self.state.as_mut().unwrap());
-        ret
+        f(self.state.as_mut().unwrap())
     }
 
-    fn write_back(&mut self, data: &mut In) {
+    fn write_back_input(&mut self, data: &mut In) {
         //log::info!("Writing back state value {:?} to Input {:?}" , self.state, data);
         if let Some(state) = &self.state {
             self.lens.with(state, |inner| {
@@ -88,21 +82,8 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> StateHolder<
 }
 
 pub struct Scope<F: Fn(In) -> State, L: Lens<State, In>, In, State, W: Widget<State>> {
-    sh: StateHolder<F, L, In, State>,
+    sh: StateHolder<F, L, In, State>, // These parts are bundled away from inner in order to help the borrow checker.
     inner: W,
-}
-
-impl<F: Fn(In) -> State, L: Lens<State, In>, In, State, W: Widget<State>> BindableAccess
-    for Scope<F, L, In, State, W>
-{
-    type Wrapped = W;
-    fn bindable(&self) -> &W {
-        &self.inner
-    }
-
-    fn bindable_mut(&mut self) -> &mut W {
-        &mut self.inner
-    }
 }
 
 impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data, W: Widget<State>>
@@ -123,9 +104,10 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data, W: Widget<St
         let holder = &mut self.sh;
         let inner = &mut self.inner;
         holder.with_state_mut(data, |state| inner.event(ctx, event, state, env));
-        holder.write_back(data);
+        holder.write_back_input(data);
 
-        // Because our input data never changed we have to call update...
+        // Because our input data may not have changed,
+        // we have to call update - widget pod will not trigger it.
         // Effectively we are a contained app
         let mut update_ctx = UpdateCtx {
             state: ctx.state,

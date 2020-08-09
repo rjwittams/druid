@@ -255,7 +255,7 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         self.scroll_to(new_pos, size);
     }
 
-    pub fn scroll_to_direction(&mut self, direction: &Axis, position: f64, ctx: &mut UpdateCtx) {
+    pub fn scroll_to_direction(&mut self, direction: Axis, position: f64, ctx: &mut UpdateCtx) {
         match direction {
             Axis::Vertical => self.scroll_to_opt(None, Some(position), ctx.size()),
             Axis::Horizontal => self.scroll_to_opt(Some(position), None, ctx.size()),
@@ -263,7 +263,7 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         ctx.request_paint();
     }
 
-    pub fn offset_for_direction(&self, direction: &Axis) -> f64 {
+    pub fn offset_for_direction(&self, direction: Axis) -> f64 {
         match direction {
             Axis::Vertical => self.scroll_offset.y,
             Axis::Horizontal => self.scroll_offset.x,
@@ -637,7 +637,7 @@ impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
         position: &Self::Value,
         _env: &Env,
     ) {
-        controlled.scroll_to_direction(&self.direction, *position, ctx);
+        controlled.scroll_to_direction(self.direction, *position, ctx);
     }
 
     fn append_changes(
@@ -648,7 +648,7 @@ impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
         _env: &Env,
     ) {
         if !controlled
-            .offset_for_direction(&self.direction)
+            .offset_for_direction(self.direction)
             .same(field_val)
         {
             *change = Some(())
@@ -663,7 +663,7 @@ impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
         _change: Self::Change,
         _env: &Env,
     ) {
-        *field = controlled.offset_for_direction(&self.direction)
+        *field = controlled.offset_for_direction(self.direction)
     }
 }
 

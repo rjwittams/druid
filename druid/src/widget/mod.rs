@@ -46,6 +46,7 @@ mod stepper;
 #[cfg_attr(docsrs, doc(cfg(feature = "svg")))]
 mod svg;
 mod switch;
+mod tabs;
 mod textbox;
 mod view_switcher;
 #[allow(clippy::module_inception)]
@@ -86,6 +87,7 @@ pub use stepper::Stepper;
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
+pub use tabs::{TabBody, TabBuilder, TabState, Tabs};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]

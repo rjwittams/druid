@@ -78,4 +78,5 @@ impl_example!(split_demo);
 impl_example!(styled_text.unwrap());
 impl_example!(switches);
 impl_example!(timer);
+impl_example!(tabs);
 impl_example!(view_switcher);
