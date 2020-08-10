@@ -16,8 +16,8 @@
 //!
 
 use crate::piet::RenderContext;
-use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, Scope, ScopePolicy};
-use crate::{theme, Insets};
+use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, Scope, ScopePolicy, Rotated};
+use crate::{theme, Insets, Affine, Vec2};
 use crate::{
     BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
@@ -32,6 +32,7 @@ use crate::kurbo::Line;
 use crate::widget::flex::Axis::Horizontal;
 use druid::im::Vector;
 use TabsContent::*;
+use std::f64::consts::PI;
 
 #[derive(Data, Clone)]
 pub struct TabsState<T: Data> {
@@ -53,16 +54,18 @@ impl<T: Data> TabsState<T> {
 pub struct TabBar<T> {
     axis: Axis,
     cross: CrossAxisAlignment,
+    orientation: TabOrientation,
     tabs: Vec<TabBarPod>,
     hot: Option<TabIndex>,
     phantom_t: PhantomData<T>,
 }
 
 impl<T: Data> TabBar<T> {
-    pub fn new(axis: Axis, cross: CrossAxisAlignment) -> Self {
+    pub fn new(axis: Axis, cross: CrossAxisAlignment, orientation: TabOrientation) -> Self {
         TabBar {
             axis,
             cross,
+            orientation,
             tabs: vec![],
             hot: None,
             phantom_t: Default::default(),
@@ -71,14 +74,18 @@ impl<T: Data> TabBar<T> {
 
     pub fn find_idx(&self, pos: Point) -> Option<TabIndex> {
         let major_pix = self.axis.major_pos(pos);
-        let res = self
-            .tabs
+        let axis = self.axis;
+        let res = self.tabs
             .binary_search_by_key(&((major_pix * 10.) as i64), |tab| {
-                (self.axis.major_pos(tab.layout_rect().origin()) * 10.) as i64
+                let rect = tab.layout_rect();
+                let far_pix = (axis.major_pos(rect.origin()) + axis.major(rect.size()));
+                (far_pix * 10.) as i64
             });
         match res {
             Ok(idx) => Some(idx),
-            Err(idx) if idx > 0 => Some(idx - 1),
+            Err(idx) if idx < self.tabs.len()  => {
+                Some(idx)
+            },
             _ => None,
         }
     }
@@ -89,10 +96,11 @@ impl<T: Data> TabBar<T> {
             let label = Label::<usize>::new(&name[..])
                 .with_font("Gill Sans".to_string())
                 .with_text_color(Color::WHITE)
-                .with_text_size(18.0)
+                .with_text_size(12.0)
                 .padding(Insets::uniform_xy(9., 5.));
+            let rot = self.orientation.rotate_and_box(label, self.axis, self.cross);
 
-            self.tabs.push(WidgetPod::new(Box::new(label)));
+            self.tabs.push(WidgetPod::new(rot));
         }
     }
 }
@@ -193,10 +201,11 @@ impl<T: Data> Widget<TabsState<T>> for TabBar<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<T>, env: &Env) {
-        let hl_thickness = 4.;
+        let hl_thickness = 2.;
         let highlight = env.get(theme::PRIMARY_LIGHT);
         for (idx, tab) in self.tabs.iter_mut().enumerate() {
             let rect = tab.layout_rect();
+            let rect = Rect::from_origin_size( rect.origin(), rect.size() );
             let bg = match (idx == data.selected, Some(idx) == self.hot) {
                 (_, true) => env.get(theme::BUTTON_DARK),
                 (true, false) => env.get(theme::BACKGROUND_LIGHT),
@@ -220,7 +229,7 @@ impl<T: Data> Widget<TabsState<T>> for TabBar<T> {
                         self.axis.pack(maj_far, minor_pos),
                     ),
                     &highlight,
-                    4.,
+                    hl_thickness,
                 )
             }
         }
@@ -390,33 +399,66 @@ impl<T: Data> ScopePolicy for TabsScopePolicy<T> {
     }
 }
 
+#[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq)]
+pub enum TabOrientation {
+    Standard,
+    Turns(u8), // These represent 90 degree rotations clockwise.
+}
+
+impl TabOrientation {
+    pub fn rotate_and_box<W: Widget<T> + 'static, T: Data>(self, widget: W, axis: Axis, cross: CrossAxisAlignment) ->Box<dyn Widget<T>>{
+        let turns = match self {
+            Self::Standard => match (axis, cross){
+                (Axis::Horizontal, _)=>0,
+                (Axis::Vertical, CrossAxisAlignment::Start)=>3,
+                (Axis::Vertical, _ )=>1
+            }
+            Self::Turns(turns) => turns,
+        };
+
+        if turns == 0 {
+            Box::new(widget)
+        } else {
+            Box::new( widget.rotate(turns) )
+        }
+    }
+}
+
 pub struct InitialTab<T> {
     name: String,
     child: TabBodyPod<T>,
 }
 
 enum TabsContent<T: Data> {
-    Builder { tabs: Vec<InitialTab<T>> },
+    StaticBuilder { tabs: Vec<InitialTab<T>> },
+    // Dynamic { tabs_from_data: TabsFromData<T> }
     Running { scope: WidgetPod<T, TabsScope<T>> },
 }
 
 pub struct Tabs<T: Data> {
     axis: Axis,
-    cross: CrossAxisAlignment,
+    cross: CrossAxisAlignment, // Not sure if this should have another enum. Middle means nothing here
+    rotation: TabOrientation,
     content: TabsContent<T>,
 }
 
 impl<T: Data> Tabs<T> {
     pub fn new() -> Self {
         Tabs {
-            axis: Horizontal,
+            axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
-            content: TabsContent::Builder { tabs: Vec::new() },
+            rotation: TabOrientation::Standard,
+            content: TabsContent::StaticBuilder { tabs: Vec::new() },
         }
     }
 
     pub fn with_axis(mut self, axis: Axis) -> Self {
         self.axis = axis;
+        self
+    }
+
+    pub fn with_rotation(mut self, rotation: TabOrientation) -> Self {
+        self.rotation = rotation;
         self
     }
 
@@ -431,7 +473,7 @@ impl<T: Data> Tabs<T> {
     }
 
     pub fn add_tab(&mut self, name: impl Into<String>, child: impl Widget<T> + 'static) {
-        if let Builder { tabs } = &mut self.content {
+        if let StaticBuilder { tabs } = &mut self.content {
             let tab = InitialTab {
                 name: name.into(),
                 child: WidgetPod::new(Box::new(child)),
@@ -450,7 +492,7 @@ impl<T: Data> Widget<T> for Tabs<T> {
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         if let LifeCycle::WidgetAdded = event {
-            if let Builder { tabs } = &mut self.content {
+            if let StaticBuilder { tabs } = &mut self.content {
                 let mut body = TabsBody::empty();
                 let mut names = Vector::new();
 
@@ -460,7 +502,7 @@ impl<T: Data> Widget<T> for Tabs<T> {
                 }
 
                 let (bar, body) = (
-                    (TabBar::new(self.axis, self.cross), 0.0),
+                    (TabBar::new(self.axis, self.cross, self.rotation), 0.0),
                     (
                         body.padding(5.).border(theme::BORDER_DARK, 0.5).expand(),
                         1.0,

@@ -1,7 +1,4 @@
-use druid::widget::{
-    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
-    SizedBox, Tabs, ViewSwitcher,
-};
+use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, Tabs, ViewSwitcher, TabOrientation};
 use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc};
 
 #[derive(Data, Clone)]
@@ -16,6 +13,7 @@ struct Advanced {
 struct TabConfig {
     axis: Axis,
     cross: CrossAxisAlignment,
+    rotation: TabOrientation
 }
 
 #[derive(Data, Clone, Lens)]
@@ -29,13 +27,14 @@ pub fn main() {
     // describe the main window
     let main_window = WindowDesc::new(build_root_widget)
         .title("Tabs")
-        .window_size((400.0, 400.0));
+        .window_size((700.0, 400.0));
 
     // create the initial app state
     let initial_state = AppState {
         tab_config: TabConfig {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
+            rotation: TabOrientation::Standard
         },
         basic: Basic {},
         advanced: Advanced { number: 13 },
@@ -78,22 +77,35 @@ fn build_root_widget() -> impl Widget<AppState> {
         ]))
         .lens(AppState::tab_config.then(TabConfig::cross));
 
+    let rot_picker = Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(decor(Label::new("Tab rotation")))
+        .with_child(RadioGroup::new(vec![
+            ("Standard", TabOrientation::Standard),
+            ("None", TabOrientation::Turns(0)),
+            ("Up", TabOrientation::Turns(3)),
+            ("Down", TabOrientation::Turns(1)),
+            ("Aussie", TabOrientation::Turns(2))
+        ]))
+        .lens(AppState::tab_config.then(TabConfig::rotation));
+
     let sidebar = Flex::column()
         .main_axis_alignment(MainAxisAlignment::Start)
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(group(axis_picker))
         .with_child(group(cross_picker))
+        .with_child( group(rot_picker))
         .with_flex_spacer(1.)
         .fix_width(200.0);
 
     let vs = ViewSwitcher::new(
         |app_s: &AppState, _| app_s.tab_config.clone(),
-        |tc: &TabConfig, _, _| Box::new(build_tab_widget(tc.axis, tc.cross)),
+        |tc: &TabConfig, _, _| Box::new(build_tab_widget(tc)),
     );
     Flex::row().with_child(sidebar).with_flex_child(vs, 1.0)
 }
 
-fn build_tab_widget(axis: Axis, cross: CrossAxisAlignment) -> impl Widget<AppState> {
+fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
     let adv = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(Label::new("More involved!"))
@@ -108,8 +120,9 @@ fn build_tab_widget(axis: Axis, cross: CrossAxisAlignment) -> impl Widget<AppSta
         .lens(AppState::advanced);
 
     Tabs::new()
-        .with_axis(axis)
-        .with_cross_axis_alignment(cross)
+        .with_axis(tab_config.axis)
+        .with_cross_axis_alignment(tab_config.cross)
+        .with_rotation(tab_config.rotation)
         .with_tab("Basic", Label::new("Basic kind of stuff"))
         .with_tab("Advanced", adv)
         .with_tab("Page 3", Label::new("Basic kind of stuff"))

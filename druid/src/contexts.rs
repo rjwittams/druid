@@ -715,6 +715,10 @@ impl Region {
     pub(crate) fn intersect_with(&mut self, rect: Rect) {
         self.0 = self.0.intersect(rect);
     }
+
+    pub(crate) fn transform_by(&mut self, transform: Affine) {
+        self.0 = transform.transform_rect_bbox(self.0);
+    }
 }
 
 impl std::ops::AddAssign<Vec2> for Region {

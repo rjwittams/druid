@@ -35,6 +35,7 @@ mod painter;
 mod parse;
 mod progress_bar;
 mod radio;
+mod rotated;
 mod scope;
 mod scroll;
 mod sized_box;
@@ -89,7 +90,8 @@ pub use stepper::Stepper;
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
 #[cfg(feature = "im")]
-pub use tabs::{Tabs, TabsBody, TabsState};
+pub use tabs::{Tabs, TabsBody, TabsState, TabOrientation};
+pub use rotated::Rotated;
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]
