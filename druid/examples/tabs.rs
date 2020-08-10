@@ -1,7 +1,8 @@
-use druid::widget::{Button, CrossAxisAlignment, Flex, Label, Tabs};
-use druid::{
-    AppLauncher, Data, Env, Lens, Widget, WidgetExt, WindowDesc
+use druid::widget::{
+    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
+    SizedBox, Tabs, ViewSwitcher,
 };
+use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc};
 
 #[derive(Data, Clone)]
 struct Basic {}
@@ -12,7 +13,14 @@ struct Advanced {
 }
 
 #[derive(Data, Clone, Lens)]
+struct TabConfig {
+    axis: Axis,
+    cross: CrossAxisAlignment,
+}
+
+#[derive(Data, Clone, Lens)]
 struct AppState {
+    tab_config: TabConfig,
     basic: Basic,
     advanced: Advanced,
 }
@@ -25,6 +33,10 @@ pub fn main() {
 
     // create the initial app state
     let initial_state = AppState {
+        tab_config: TabConfig {
+            axis: Axis::Horizontal,
+            cross: CrossAxisAlignment::Start,
+        },
         basic: Basic {},
         advanced: Advanced { number: 13 },
     };
@@ -37,6 +49,51 @@ pub fn main() {
 }
 
 fn build_root_widget() -> impl Widget<AppState> {
+    fn decor<T: Data>(label: Label<T>) -> SizedBox<T> {
+        label
+            .padding(5.)
+            .background(theme::PLACEHOLDER_COLOR)
+            .expand_width()
+    }
+
+    fn group<T: Data, W: Widget<T> + 'static>(w: W) -> Padding<T> {
+        w.border(Color::WHITE, 0.5).padding(5.)
+    }
+
+    let axis_picker = Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(decor(Label::new("Tab bar axis")))
+        .with_child(RadioGroup::new(vec![
+            ("Horizontal", Axis::Horizontal),
+            ("Vertical", Axis::Vertical),
+        ]))
+        .lens(AppState::tab_config.then(TabConfig::axis));
+
+    let cross_picker = Flex::column()
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(decor(Label::new("Tab bar alignment")))
+        .with_child(RadioGroup::new(vec![
+            ("Start", CrossAxisAlignment::Start),
+            ("End", CrossAxisAlignment::End),
+        ]))
+        .lens(AppState::tab_config.then(TabConfig::cross));
+
+    let sidebar = Flex::column()
+        .main_axis_alignment(MainAxisAlignment::Start)
+        .cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_child(group(axis_picker))
+        .with_child(group(cross_picker))
+        .with_flex_spacer(1.)
+        .fix_width(200.0);
+
+    let vs = ViewSwitcher::new(
+        |app_s: &AppState, _| app_s.tab_config.clone(),
+        |tc: &TabConfig, _, _| Box::new(build_tab_widget(tc.axis, tc.cross)),
+    );
+    Flex::row().with_child(sidebar).with_flex_child(vs, 1.0)
+}
+
+fn build_tab_widget(axis: Axis, cross: CrossAxisAlignment) -> impl Widget<AppState> {
     let adv = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(Label::new("More involved!"))
@@ -51,6 +108,13 @@ fn build_root_widget() -> impl Widget<AppState> {
         .lens(AppState::advanced);
 
     Tabs::new()
+        .with_axis(axis)
+        .with_cross_axis_alignment(cross)
         .with_tab("Basic", Label::new("Basic kind of stuff"))
         .with_tab("Advanced", adv)
+        .with_tab("Page 3", Label::new("Basic kind of stuff"))
+        .with_tab("Page 4", Label::new("Basic kind of stuff"))
+        .with_tab("Page 5", Label::new("Basic kind of stuff"))
+        .with_tab("Page 6", Label::new("Basic kind of stuff"))
+        .with_tab("Page 7", Label::new("Basic kind of stuff"))
 }

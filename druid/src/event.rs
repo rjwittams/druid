@@ -161,9 +161,10 @@ pub enum LifeCycle {
     /// ## Registering children
     ///
     /// Container widgets (widgets which use [`WidgetPod`] to manage children)
-    /// must ensure that this event is forwarded to those children. The [`WidgetPod`]
-    /// itself will handle registering those children with the system; this is
-    /// required for things like correct routing of events.
+    /// must ensure that this event is forwarded to those children. This includes widgets that
+    /// have just been created during response to WidgetAdded - the event should then be
+    /// passed on them. The [`WidgetPod`] itself will handle registering those children with
+    /// the system; this is required for things like correct routing of events.
     ///
     /// ## Participating in focus
     ///

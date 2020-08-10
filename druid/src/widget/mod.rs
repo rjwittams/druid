@@ -46,6 +46,7 @@ mod stepper;
 #[cfg_attr(docsrs, doc(cfg(feature = "svg")))]
 mod svg;
 mod switch;
+#[cfg(feature = "im")]
 mod tabs;
 mod textbox;
 mod view_switcher;
@@ -77,7 +78,7 @@ pub use painter::{BackgroundBrush, Painter};
 pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
-pub use scope::{Scope, ScopePolicy, DefaultScopePolicy};
+pub use scope::{DefaultScopePolicy, Scope, ScopePolicy};
 pub use scroll::{Scroll, ScrollTo, ScrollToProperty, SCROLL_TO};
 pub use sized_box::SizedBox;
 pub use slider::Slider;
@@ -87,7 +88,8 @@ pub use stepper::Stepper;
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
-pub use tabs::{TabsBody, Tabs, TabsState};
+#[cfg(feature = "im")]
+pub use tabs::{Tabs, TabsBody, TabsState};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]

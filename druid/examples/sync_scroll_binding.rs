@@ -1,6 +1,9 @@
 use druid::piet::{Color, FontBuilder, Text, TextLayout, TextLayoutBuilder};
 use druid::widget::prelude::*;
-use druid::widget::{Axis, Bindable, BindingExt, Flex, Label, LensBindingExt, Padding, Scope, Scroll, ScrollToProperty, TextBox, WidgetBindingExt, DefaultScopePolicy};
+use druid::widget::{
+    Axis, Bindable, BindingExt, DefaultScopePolicy, Flex, Label, LensBindingExt, Padding, Scope,
+    Scroll, ScrollToProperty, TextBox, WidgetBindingExt,
+};
 use druid::{AppLauncher, Data, Lens, LocalizedString, WidgetExt, WindowDesc};
 
 #[derive(Data, Lens, Debug, Clone)]
@@ -123,7 +126,7 @@ fn build_widget() -> impl Widget<OuterState> {
 
     let scope = Scope::new(
         DefaultScopePolicy::new(
-            InnerState::new, // How to construct the inner state from its input
+            InnerState::new,  // How to construct the inner state from its input
             InnerState::text, // How to extract the input back out of the inner state
         ),
         build_inner_widget(), // Widgets operating on inner state
