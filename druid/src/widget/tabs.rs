@@ -16,8 +16,8 @@
 //!
 
 use crate::piet::RenderContext;
-use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, Scope, ScopePolicy, Rotated};
-use crate::{theme, Insets, Affine, Vec2};
+use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, Scope, ScopePolicy};
+use crate::{theme, Insets, Affine};
 use crate::{
     BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
@@ -29,10 +29,10 @@ type TabBodyPod<T> = WidgetPod<T, Box<dyn Widget<T>>>;
 type TabBarPod = WidgetPod<TabIndex, Box<dyn Widget<TabIndex>>>;
 type TabIndex = usize;
 use crate::kurbo::Line;
-use crate::widget::flex::Axis::Horizontal;
 use druid::im::Vector;
 use TabsContent::*;
-use std::f64::consts::PI;
+
+const MILLIS: u64 = 1_000_000; // Number of nanos
 
 #[derive(Data, Clone)]
 pub struct TabsState<T: Data> {
@@ -78,7 +78,7 @@ impl<T: Data> TabBar<T> {
         let res = self.tabs
             .binary_search_by_key(&((major_pix * 10.) as i64), |tab| {
                 let rect = tab.layout_rect();
-                let far_pix = (axis.major_pos(rect.origin()) + axis.major(rect.size()));
+                let far_pix = axis.major_pos(rect.origin()) + axis.major(rect.size());
                 (far_pix * 10.) as i64
             });
         match res {
@@ -236,17 +236,54 @@ impl<T: Data> Widget<TabsState<T>> for TabBar<T> {
     }
 }
 
+pub struct TabsTransition{
+    previous_idx: TabIndex,
+    current_time: u64,
+    length: u64,
+    increasing: bool
+}
+
+impl TabsTransition {
+    pub fn new(previous_idx: TabIndex, length: u64, increasing: bool) -> Self {
+        TabsTransition {previous_idx, current_time: 0, length, increasing: increasing }
+    }
+
+    pub fn live(&self)->bool{
+        self.current_time < self.length
+    }
+
+    pub fn fraction(&self)->f64{
+        (self.current_time as f64) / (self.length as f64)
+    }
+
+    pub fn previous_transform(&self, axis: Axis, main: f64) ->Affine{
+        let x = if self.increasing {
+            - main * self.fraction()
+        }else{
+            main * self.fraction()
+        };
+        Affine::translate(axis.pack(x, 0.))
+    }
+
+    pub fn selected_transform(&self, axis: Axis,  main: f64) ->Affine{
+        let x = if self.increasing {
+            main * (1.0 - self.fraction())
+        }else {
+            -main * (1.0 - self.fraction())
+        };
+        Affine::translate(axis.pack(x, 0.))
+    }
+}
+
 pub struct TabsBody<T> {
     children: Vec<TabBodyPod<T>>,
+    transition: Option<TabsTransition>,
+    axis: Axis
 }
 
 impl<T> TabsBody<T> {
-    pub fn empty() -> TabsBody<T> {
-        TabsBody { children: vec![] }
-    }
-
-    pub fn new(child: impl Widget<T> + 'static) -> TabsBody<T> {
-        Self::empty().with_child(child)
+    pub fn new(axis : Axis) -> TabsBody<T> {
+        TabsBody { children: vec![], transition: None, axis }
     }
 
     pub fn with_child(mut self, child: impl Widget<T> + 'static) -> TabsBody<T> {
@@ -297,6 +334,7 @@ fn hidden_should_receive_lifecycle(lc: &LifeCycle) -> bool {
     }
 }
 
+
 impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut TabsState<T>, env: &Env) {
         if hidden_should_receive_event(event) {
@@ -323,6 +361,17 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
             // Pick which events go to all and which just to active
             child.lifecycle(ctx, event, &data.inner, env);
         }
+
+        if let (Some(trans), LifeCycle::AnimFrame(interval)) = (&mut self.transition, event) {
+            trans.current_time += *interval;
+            if trans.live() {
+                ctx.request_anim_frame();
+
+            }else{
+                self.transition = None;
+                log::info!("Finished at {:?}", std::time::Instant::now() );
+            }
+        }
     }
 
     fn update(
@@ -333,7 +382,10 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
         env: &Env,
     ) {
         if _old_data.selected != data.selected {
+            self.transition = Some(TabsTransition::new(_old_data.selected, 250 * MILLIS, _old_data.selected < data.selected));
+            log::info!("Started at {:?}", std::time::Instant::now() );
             ctx.request_layout();
+            ctx.request_anim_frame();
         }
         for child in &mut self.children {
             child.update(ctx, &data.inner, env);
@@ -359,8 +411,31 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<T>, env: &Env) {
-        if let Some(ref mut child) = self.active(data) {
-            child.paint_raw(ctx, &data.inner, env);
+
+        if let Some(trans) = &self.transition{
+            let axis = self.axis;
+            let size = ctx.size();
+            let major = axis.major(size);
+            ctx.clip(Rect::from_origin_size (Point::ZERO, size));
+
+            let children = &mut self.children;
+            if let Some(ref mut prev) = children.get_mut(trans.previous_idx) {
+                ctx.with_save(|ctx| {
+
+                    ctx.transform( trans.previous_transform(axis, major) );
+                    prev.paint_raw(ctx, &data.inner, env);
+                })
+            }
+            if let Some(ref mut child) = children.get_mut(data.selected) {
+                ctx.with_save(|ctx| {
+                    ctx.transform(trans.selected_transform(axis, major));
+                    child.paint_raw(ctx, &data.inner, env);
+                })
+            }
+        }else {
+            if let Some(ref mut child) = self.children.get_mut(data.selected) {
+                child.paint_raw(ctx, &data.inner, env);
+            }
         }
     }
 }
@@ -493,7 +568,7 @@ impl<T: Data> Widget<T> for Tabs<T> {
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         if let LifeCycle::WidgetAdded = event {
             if let StaticBuilder { tabs } = &mut self.content {
-                let mut body = TabsBody::empty();
+                let mut body = TabsBody::new(self.axis);
                 let mut names = Vector::new();
 
                 for tab in tabs.drain(0..) {

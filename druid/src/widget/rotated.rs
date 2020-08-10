@@ -26,10 +26,9 @@ impl <W> Rotated<W>{
     fn affine(&self, child_size: Size, my_size: Size) -> Affine {
         let a = ((self.quarter_turns % 4) as f64) * PI / 2.0;
 
-        let transform = Affine::translate(Vec2::new(my_size.width / 2., my_size.height / 2.)) *
+        Affine::translate(Vec2::new(my_size.width / 2., my_size.height / 2.)) *
             Affine::rotate(a) *
-            Affine::translate(Vec2::new(-child_size.width / 2., -child_size.height / 2.));
-        transform
+            Affine::translate(Vec2::new(-child_size.width / 2., -child_size.height / 2.))
     }
 
     fn translate_mouse_event(&self, inverse: Affine, me: &MouseEvent) -> MouseEvent {
