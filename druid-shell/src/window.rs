@@ -346,6 +346,10 @@ impl WindowBuilder {
         self.0.set_position(position);
     }
 
+    pub fn borderless(&mut self, borderless: bool) {
+        self.0.borderless(borderless)
+    }
+
     /// Set the window's initial title.
     pub fn set_title(&mut self, title: impl Into<String>) {
         self.0.set_title(title)

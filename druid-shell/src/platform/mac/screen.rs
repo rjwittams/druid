@@ -16,13 +16,58 @@
 
 use crate::screen::Monitor;
 use crate::kurbo::Size;
+use cocoa::foundation::NSArray;
+use std::any::Any;
+use std::ffi::c_void;
+use std::mem;
+use std::sync::{Arc, Mutex, Weak};
+use std::time::Instant;
+
+use cocoa::appkit::{
+    CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
+    NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask, NSMainMenuWindowLevel,
+    NSScreen
+};
+use cocoa::base::{id, nil, BOOL, NO, YES};
+use cocoa::foundation::{NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger};
+use core_graphics::context::CGContextRef;
+use foreign_types::ForeignTypeRef;
+use lazy_static::lazy_static;
+use log::{error, info};
+use objc::declare::ClassDecl;
+use objc::rc::WeakPtr;
+use objc::runtime::{Class, Object, Sel};
+use objc::{class, msg_send, sel, sel_impl};
+use kurbo::Rect;
 
 pub(crate) fn get_display_size() -> Size {
-    log::warn!("Screen::get_display_size() is currently unimplemented for Mac.");
-    Size::new(0.0, 0.0)
+    unsafe  {
+        let rect = get_monitors().iter().fold( Rect::ZERO, |rect, monitor| rect.union( monitor.virtual_rect()));
+        rect.size()
+    }
 }
 
 pub(crate) fn get_monitors() -> Vec<Monitor> {
-    log::warn!("Screen::get_monitors() is currently unimplemented for Mac.");
-    Vec::<Monitor>::new()
+    unsafe {
+        let screens: id = msg_send![class![NSScreen], screens];
+        let mut monitors = Vec::<Monitor>::new();
+        let mut total_rect = Rect::ZERO;
+
+        for idx in 0..screens.count() {
+            let screen = screens.objectAtIndex(idx);
+            let frame =  NSScreen::frame(screen);
+
+            let frame_r = Rect::from_origin_size((frame.origin.x, frame.origin.y), (frame.size.width,  frame.size.height));
+            let vis_frame = NSScreen::visibleFrame(screen);
+            let vis_frame_r = Rect::from_origin_size(  (vis_frame.origin.x, vis_frame.origin.y), (vis_frame.size.width,  vis_frame.size.height) );
+            monitors.push(Monitor::new(idx == 0,  frame_r,  vis_frame_r) );
+            total_rect = total_rect.union(frame_r)
+        }
+
+        //Flip y coordinates of origins (On mac, Y goes up)
+
+
+
+        monitors
+    }
 }
