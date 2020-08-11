@@ -28,6 +28,8 @@ use crate::{
     Target, Text, TimerToken, Vec2, WidgetId, WindowDesc, WindowHandle, WindowId,
 };
 
+use crate::widget::{SubWindowRequirement, SubWindowRequirementTransfer};
+
 /// A macro for implementing methods on multiple contexts.
 ///
 /// There are a lot of methods defined on multiple contexts; this lets us only
@@ -417,6 +419,10 @@ impl EventCtx<'_, '_> {
                 log::error!("EventCtx::show_context_menu: {}", MSG)
             }
         }
+    }
+
+    pub fn new_sub_window(&mut self, requirement: SubWindowRequirement) {
+        self.submit_command(commands::NEW_SUB_WINDOW.with(SubWindowRequirementTransfer::new(requirement)), None);
     }
 
     /// Set the event as "handled", which stops its propagation to other

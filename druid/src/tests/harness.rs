@@ -19,6 +19,7 @@ use std::path::Path;
 use crate::core::{CommandQueue, WidgetState};
 use crate::piet::{BitmapTarget, Device, Error, ImageFormat, Piet};
 use crate::*;
+use crate::app::PendingWindow;
 
 pub(crate) const DEFAULT_SIZE: Size = Size::new(400., 400.);
 
@@ -141,7 +142,7 @@ impl<T: Data> Harness<'_, T> {
         {
             let piet = target.0.as_mut().unwrap().render_context();
 
-            let desc = WindowDesc::new(|| root);
+            let desc = PendingWindow::new(root.boxed(),  LocalizedString::new("app-name").into(), MenuDesc::platform_default() );
             let window = Window::new(WindowId::next(), Default::default(), desc);
 
             let inner = Inner {

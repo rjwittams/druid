@@ -34,6 +34,7 @@ use crate::{
     LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx, TimerToken, UpdateCtx, Widget,
     WidgetId, WidgetPod, WindowDesc,
 };
+use crate::app::PendingWindow;
 
 /// A unique identifier for a window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -56,13 +57,13 @@ pub struct Window<T> {
 }
 
 impl<T> Window<T> {
-    pub(crate) fn new(id: WindowId, handle: WindowHandle, desc: WindowDesc<T>) -> Window<T> {
+    pub(crate) fn new(id: WindowId, handle: WindowHandle, pending: PendingWindow<T>) -> Window<T> {
         Window {
             id,
-            root: WidgetPod::new(desc.root),
+            root: WidgetPod::new(pending.root),
             size: Size::ZERO,
-            title: desc.title,
-            menu: desc.menu,
+            title: pending.title,
+            menu: pending.menu,
             context_menu: None,
             last_anim: None,
             last_mouse_pos: None,
@@ -88,7 +89,7 @@ impl<T: Data> Window<T> {
     /// However when this returns `false` the widget is definitely not in this window.
     pub(crate) fn may_contain_widget(&self, widget_id: WidgetId) -> bool {
         // The bloom filter we're checking can return false positives.
-        self.root.state().children.may_contain(&widget_id)
+        widget_id == self.root.id() || self.root.state().children.may_contain(&widget_id)
     }
 
     pub(crate) fn set_menu(&mut self, mut menu: MenuDesc<T>, data: &T, env: &Env) {

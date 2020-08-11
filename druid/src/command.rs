@@ -130,6 +130,7 @@ pub mod sys {
 
     use super::Selector;
     use crate::{FileDialogOptions, FileInfo, SingleUse};
+    use crate::widget::SubWindowRequirementTransfer;
 
     /// Quit the running application. This command is handled by the druid library.
     pub const QUIT_APP: Selector = Selector::new("druid-builtin.quit-app");
@@ -167,6 +168,9 @@ pub mod sys {
     /// [`ContextMenu`]: ../struct.ContextMenu.html
     pub(crate) const SHOW_CONTEXT_MENU: Selector<Box<dyn Any>> =
         Selector::new("druid-builtin.show-context-menu");
+
+    pub(crate) const NEW_SUB_WINDOW: Selector<SubWindowRequirementTransfer> =
+        Selector::new("druid-builtin.new-sub-window");
 
     /// The selector for a command to set the window's menu. The payload should
     /// be a [`MenuDesc`] object.
@@ -351,6 +355,7 @@ impl Command {
             )
         })
     }
+
 }
 
 impl<T: Any> SingleUse<T> {

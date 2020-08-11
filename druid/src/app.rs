@@ -42,10 +42,10 @@ pub struct AppLauncher<T> {
 pub struct WindowDesc<T> {
     pub(crate) root: Box<dyn Widget<T>>,
     pub(crate) title: LabelText<T>,
+    pub(crate) menu: Option<MenuDesc<T>>,
     pub(crate) size: Option<Size>,
     pub(crate) min_size: Option<Size>,
     pub(crate) position: Option<Point>,
-    pub(crate) menu: Option<MenuDesc<T>>,
     pub(crate) resizable: bool,
     pub(crate) show_titlebar: bool,
     pub(crate) maximized: bool,
@@ -55,6 +55,18 @@ pub struct WindowDesc<T> {
     /// This can be used to track a window from when it is launched and when
     /// it actually connects.
     pub id: WindowId,
+}
+
+pub struct PendingWindow<T>{
+    pub(crate) root: Box<dyn Widget<T>>,
+    pub(crate) title: LabelText<T>,
+    pub(crate) menu: Option<MenuDesc<T>>,
+}
+
+impl<T> PendingWindow<T> {
+    pub fn new(root: Box<dyn Widget<T>>, title: LabelText<T>, menu: Option<MenuDesc<T>>) -> Self {
+        PendingWindow { root, title, menu }
+    }
 }
 
 impl<T: Data> AppLauncher<T> {
@@ -173,6 +185,22 @@ impl<T: Data> WindowDesc<T> {
             maximized: false,
             minimized: false,
             id: WindowId::next(),
+        }
+    }
+
+    pub fn map_widget<F: FnOnce(Box<dyn Widget<T>>)->Box<dyn Widget<U>>, U: Data>(mut self, f: F)-> WindowDesc<U>{
+        WindowDesc{
+            root: f(self.root),
+            title: LocalizedString::new("app-name").into(),
+            size: self.size,
+            min_size: self.min_size,
+            position: self.position,
+            menu: MenuDesc::platform_default(),
+            resizable: self.resizable,
+            show_titlebar: self.show_titlebar,
+            maximized: self.maximized,
+            minimized: self.minimized,
+            id: self.id,
         }
     }
 
@@ -307,11 +335,9 @@ impl<T: Data> WindowDesc<T> {
         }
 
         let root = self.root;
-        let mut window = WindowDesc::new(|| root);
-        window.title = self.title;
-        window.menu = self.menu;
+        let mut pending = PendingWindow::new(root, self.title, self.menu);
 
-        state.add_window(self.id, window);
+        state.add_window(self.id, pending);
 
         builder.build()
     }

@@ -34,6 +34,8 @@ use crate::{
 };
 
 use crate::command::sys as sys_cmd;
+use crate::app::PendingWindow;
+use crate::widget::SubWindowRequirement;
 
 pub(crate) const RUN_COMMANDS_TOKEN: IdleToken = IdleToken::new(1);
 
@@ -84,7 +86,7 @@ struct Inner<T> {
 
 /// All active windows.
 struct Windows<T> {
-    pending: HashMap<WindowId, WindowDesc<T>>,
+    pending: HashMap<WindowId, PendingWindow<T>>,
     windows: HashMap<WindowId, Window<T>>,
 }
 
@@ -98,7 +100,7 @@ impl<T> Windows<T> {
         }
     }
 
-    fn add(&mut self, id: WindowId, win: WindowDesc<T>) {
+    fn add(&mut self, id: WindowId, win: PendingWindow<T>) {
         assert!(self.pending.insert(id, win).is_none(), "duplicate pending");
     }
 
@@ -310,7 +312,7 @@ impl<T: Data> Inner<T> {
         if !self.delegate_cmd(target, &cmd) {
             return;
         }
-
+        log::info!("Inner dispatch cmd {:?} {:?}", target, cmd);
         match target {
             Target::Window(id) => {
                 // first handle special window-level events
@@ -328,9 +330,11 @@ impl<T: Data> Inner<T> {
             // in this case we send it to every window that might contain
             // this widget, breaking if the event is handled.
             Target::Widget(id) => {
+                log::info!("App trying to send  targeted cmd to windows {:?} {:?} {:?}", target, cmd, id);
                 for w in self.windows.iter_mut().filter(|w| w.may_contain_widget(id)) {
                     let event =
                         Event::Internal(InternalEvent::TargetedCommand(id.into(), cmd.clone()));
+                    log::info!("App  send targeted cmd to window {:?} {:?} {:?} {:?}", target, cmd, id, w.id);
                     if w.event(&mut self.command_queue, event, &mut self.data, &self.env) {
                         break;
                     }
@@ -448,7 +452,7 @@ impl<T: Data> AppState<T> {
         self.inner.borrow().env.clone()
     }
 
-    pub(crate) fn add_window(&self, id: WindowId, window: WindowDesc<T>) {
+    pub(crate) fn add_window(&self, id: WindowId, window: PendingWindow<T>) {
         self.inner.borrow_mut().windows.add(id, window);
     }
 
@@ -537,6 +541,7 @@ impl<T: Data> AppState<T> {
     /// windows) have their logic here; other commands are passed to the window.
     fn handle_cmd(&mut self, target: Target, cmd: Command) {
         use Target as T;
+        log::info!("AppState handling command {:?} {:?}", target, cmd);
         match target {
             // these are handled the same no matter where they come from
             _ if cmd.is(sys_cmd::QUIT_APP) => self.quit(),
@@ -545,6 +550,11 @@ impl<T: Data> AppState<T> {
             _ if cmd.is(sys_cmd::NEW_WINDOW) => {
                 if let Err(e) = self.new_window(cmd) {
                     log::error!("failed to create window: '{}'", e);
+                }
+            }
+            _ if cmd.is( sys_cmd::NEW_SUB_WINDOW) => {
+                if let Err(e) = self.new_sub_window(cmd) {
+                    log::error!("failed to create sub window: '{}'", e);
                 }
             }
             _ if cmd.is(sys_cmd::CLOSE_ALL_WINDOWS) => self.request_close_all_windows(),
@@ -564,6 +574,8 @@ impl<T: Data> AppState<T> {
             _ => self.inner.borrow_mut().dispatch_cmd(target, cmd),
         }
     }
+
+
 
     fn show_open_panel(&mut self, cmd: Command, window_id: WindowId) {
         let options = cmd.get_unchecked(sys_cmd::SHOW_OPEN_PANEL).to_owned();
@@ -614,6 +626,28 @@ impl<T: Data> AppState<T> {
         window.show();
         Ok(())
     }
+
+    fn new_sub_window(&mut self, cmd: Command) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(transfer) = cmd.get(sys_cmd::NEW_SUB_WINDOW){
+            let option = transfer.inner.replace(None);
+            if let Some(swr) = option{
+                let window = swr.make_sub_window(self)?;
+                window.show();
+                Ok(())
+            }else{
+                panic!(
+                    "{} command must carry a SubWindowRequirement",
+                    sys_cmd::NEW_SUB_WINDOW
+                )
+            }
+        } else{
+            panic!(
+                "{} command must carry a SubWindowRequirementTransfer",
+                sys_cmd::NEW_SUB_WINDOW
+            )
+        }
+    }
+
 
     fn request_close_window(&mut self, id: WindowId) {
         self.inner.borrow_mut().request_close_window(id);
