@@ -369,7 +369,6 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
 
             }else{
                 self.transition = None;
-                log::info!("Finished at {:?}", std::time::Instant::now() );
             }
         }
     }
@@ -383,7 +382,6 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
     ) {
         if _old_data.selected != data.selected {
             self.transition = Some(TabsTransition::new(_old_data.selected, 250 * MILLIS, _old_data.selected < data.selected));
-            log::info!("Started at {:?}", std::time::Instant::now() );
             ctx.request_layout();
             ctx.request_anim_frame();
         }
