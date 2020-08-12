@@ -24,6 +24,7 @@ use crate::kurbo::{Point, Rect, Size};
 use crate::piet::{Piet, RenderContext};
 use crate::shell::{Counter, Cursor, WindowHandle};
 
+use crate::app::PendingWindow;
 use crate::contexts::ContextState;
 use crate::core::{CommandQueue, FocusChange, WidgetState};
 use crate::util::ExtendDrain;
@@ -32,9 +33,8 @@ use crate::win_handler::RUN_COMMANDS_TOKEN;
 use crate::{
     BoxConstraints, Command, Data, Env, Event, EventCtx, InternalEvent, InternalLifeCycle,
     LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx, TimerToken, UpdateCtx, Widget,
-    WidgetId, WidgetPod, WindowDesc,
+    WidgetId, WidgetPod,
 };
-use crate::app::PendingWindow;
 
 /// A unique identifier for a window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

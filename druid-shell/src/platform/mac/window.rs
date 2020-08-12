@@ -24,7 +24,7 @@ use std::time::Instant;
 
 use cocoa::appkit::{
     CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
-    NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask, NSMainMenuWindowLevel
+    NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask
 };
 use cocoa::base::{id, nil, BOOL, NO, YES};
 use cocoa::foundation::{NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger};
@@ -60,6 +60,7 @@ use super::screen;
 #[allow(non_upper_case_globals)]
 const NSWindowDidBecomeKeyNotification: &str = "NSWindowDidBecomeKeyNotification";
 
+#[allow( dead_code)]
 #[allow(non_upper_case_globals)]
 mod levels{
     pub const NSModalPanelLevel: i32 = 24;
@@ -900,7 +901,7 @@ impl WindowHandle {
             let window: id =  msg_send![*self.nsview.load(), window];
             let frame :NSRect = msg_send![ window , frame];
 
-            let mut new_frame = frame.clone();
+            let mut new_frame = frame;
             new_frame.origin.x = position.x;
             new_frame.origin.y = screen_height - position.y - frame.size.height*2. ; // Flip back
             let  () = msg_send![window, setFrame: new_frame display: YES];
@@ -924,7 +925,7 @@ impl WindowHandle {
         unsafe {
             let window: id = msg_send![*self.nsview.load(), window];
             let current_frame: NSRect = msg_send![ window , frame];
-            let mut new_frame = current_frame.clone();
+            let mut new_frame = current_frame;
             new_frame.size.width = size.width;
             new_frame.size.height = size.height;
             let  () = msg_send![window, setFrame: new_frame display: YES];

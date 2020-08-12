@@ -1,15 +1,14 @@
-use crate::{Widget, WidgetPod, LifeCycle, EventCtx, PaintCtx, LifeCycleCtx, BoxConstraints, Size, LayoutCtx, Event, Env, UpdateCtx, Selector, WidgetId, WidgetExt, Rect, Point, WindowDesc, WindowHandle, Data, Lens, WindowId};
-use std::rc::Rc;
-use std::ops::Deref;
-use std::borrow::BorrowMut;
-use std::any::Any;
+use crate::app::{PendingWindow, WindowConfig};
+use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
+use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
 use crate::win_handler::AppState;
+use crate::{
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
+    Point, Rect, Size, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowHandle, WindowId,
+};
 use druid_shell::Error;
 use std::marker::PhantomData;
-use std::cell::RefCell;
-use crate::app::{WindowConfig, PendingWindow};
-use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
-use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
+use std::ops::Deref;
 
 // We have to have no generics, as both ends would need to know them.
 // So we erase everything to ()
@@ -19,27 +18,19 @@ pub struct SubWindowRequirement {
     pub(crate) window_config: WindowConfig,
 }
 
-pub struct SubWindowRequirementTransfer{
-    pub(crate) inner: RefCell<Option<SubWindowRequirement>>
-}
-
-impl SubWindowRequirementTransfer {
-    pub fn new(inner: SubWindowRequirement) -> Self {
-        Self { inner: RefCell::new(Some(inner)) }
-    }
-}
-
-struct UnitLens<T>{
-    phantom_t: PhantomData<T>
+struct UnitLens<T> {
+    phantom_t: PhantomData<T>,
 }
 
 impl<T> UnitLens<T> {
     pub fn new() -> Self {
-        UnitLens { phantom_t: Default::default() }
+        UnitLens {
+            phantom_t: Default::default(),
+        }
     }
 }
 
-impl <T> Lens<T, ()> for UnitLens<T>{
+impl<T> Lens<T, ()> for UnitLens<T> {
     fn with<V, F: FnOnce(&()) -> V>(&self, _data: &T, f: F) -> V {
         f(&())
     }
@@ -49,21 +40,32 @@ impl <T> Lens<T, ()> for UnitLens<T>{
 }
 
 impl SubWindowRequirement {
-    pub fn new<U: Data, W: Widget<U> + 'static >(parent_id: WidgetId, window_config: WindowConfig, widget: W, data: U) -> Self {
+    pub fn new<U: Data, W: Widget<U> + 'static>(
+        parent_id: WidgetId,
+        window_config: WindowConfig,
+        widget: W,
+        data: U,
+    ) -> Self {
         let host_id = WidgetId::next();
         let sub_window_host = SubWindowHost::new(host_id, parent_id, data, widget).boxed();
-        SubWindowRequirement { host_id, sub_window_host,  window_config }
+        SubWindowRequirement {
+            host_id,
+            sub_window_host,
+            window_config,
+        }
     }
 
-    pub (crate) fn make_sub_window<T: Data>(mut self, app_state: &mut AppState<T>) -> Result<WindowHandle, Error> {
-        let pending = PendingWindow::new_from_boxed(self.sub_window_host.lens( UnitLens::new() ).boxed() );
+    pub(crate) fn make_sub_window<T: Data>(
+        self,
+        app_state: &mut AppState<T>,
+    ) -> Result<WindowHandle, Error> {
+        let pending =
+            PendingWindow::new_from_boxed(self.sub_window_host.lens(UnitLens::new()).boxed());
         app_state.build_native_window(WindowId::next(), pending, self.window_config)
     }
-
 }
 
-
-pub struct SubWindowHost<U, W: Widget<U>>{
+pub struct SubWindowHost<U, W: Widget<U>> {
     id: WidgetId,
     parent_id: WidgetId,
     data: U,
@@ -72,55 +74,71 @@ pub struct SubWindowHost<U, W: Widget<U>>{
 
 impl<U, W: Widget<U>> SubWindowHost<U, W> {
     pub fn new(id: WidgetId, port_id: WidgetId, data: U, widget: W) -> Self {
-        SubWindowHost {id, parent_id: port_id, data, child: WidgetPod::new(widget)}
+        SubWindowHost {
+            id,
+            parent_id: port_id,
+            data,
+            child: WidgetPod::new(widget),
+        }
     }
 }
 
-impl <U: Data, W: Widget<U>>  Widget<()> for SubWindowHost<U, W>{
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (), env: &Env) {
-        match event{
-            Event::Command(cmd) if cmd.is(SUB_WINDOW_PARENT_TO_HOST) =>{
-                if let Some(update) = cmd.get_unchecked(SUB_WINDOW_PARENT_TO_HOST).downcast_ref::<U>(){
+impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut (), env: &Env) {
+        match event {
+            Event::Command(cmd) if cmd.is(SUB_WINDOW_PARENT_TO_HOST) => {
+                if let Some(update) = cmd
+                    .get_unchecked(SUB_WINDOW_PARENT_TO_HOST)
+                    .downcast_ref::<U>()
+                {
                     self.data = update.deref().clone();
-                    let mut update_ctx = UpdateCtx{
-                         state: ctx.state,
-                         widget_state: ctx.widget_state
+                    let mut update_ctx = UpdateCtx {
+                        state: ctx.state,
+                        widget_state: ctx.widget_state,
                     };
                     self.child.update(&mut update_ctx, &self.data, env); // Should env be copied around too?
                 }
                 ctx.set_handled();
-            },
-            _=>{
+            }
+            _ => {
                 let old = self.data.clone(); // Could avoid this by keeping two or if we could ask widget pod
                 self.child.event(ctx, event, &mut self.data, env);
                 // This update is happening before process commands. Not sure if that matters.
-                let mut update_ctx = UpdateCtx{
+                let mut update_ctx = UpdateCtx {
                     state: ctx.state,
-                    widget_state: ctx.widget_state
+                    widget_state: ctx.widget_state,
                 };
                 self.child.update(&mut update_ctx, &self.data, env);
-                if !old.same(&self.data){
-                    ctx.submit_command(SUB_WINDOW_HOST_TO_PARENT.with( Box::new(self.data.clone()) ), self.parent_id)
+                if !old.same(&self.data) {
+                    ctx.submit_command(
+                        SUB_WINDOW_HOST_TO_PARENT.with(Box::new(self.data.clone())),
+                        self.parent_id,
+                    )
                 }
             }
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &(), env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, _data: &(), env: &Env) {
         self.child.lifecycle(ctx, event, &self.data, env)
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &(), data: &(), env: &Env) {
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &(), _data: &(), _env: &Env) {
         // Can't use this change
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(), env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &(), env: &Env) -> Size {
         let size = self.child.layout(ctx, bc, &self.data, env);
-        self.child.set_layout_rect(ctx, &self.data, env, Rect::from_origin_size(Point::ORIGIN, size));
+        self.child.set_layout_rect(
+            ctx,
+            &self.data,
+            env,
+            Rect::from_origin_size(Point::ORIGIN, size),
+        );
         size
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &(), env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, _data: &(), env: &Env) {
         self.child.paint_raw(ctx, &self.data, env);
     }
 

@@ -20,9 +20,7 @@ use crate::shell::{Application, Error as PlatformError, WindowBuilder, WindowHan
 use crate::widget::LabelText;
 use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
-use crate::{
-    theme, AppDelegate, Data, DruidHandler, Env, LocalizedString, MenuDesc, Widget, WidgetExt,
-};
+use crate::{theme, AppDelegate, Data, Env, LocalizedString, MenuDesc, Widget, WidgetExt};
 
 /// A function that modifies the initial environment.
 type EnvSetupFn<T> = dyn FnOnce(&mut Env, &T);
@@ -59,33 +57,30 @@ pub struct WindowDesc<T> {
     pub id: WindowId,
 }
 
-pub struct PendingWindow<T>{
+pub struct PendingWindow<T> {
     pub(crate) root: Box<dyn Widget<T>>,
     pub(crate) title: LabelText<T>,
     pub(crate) menu: Option<MenuDesc<T>>,
 }
 
 impl<T: Data> PendingWindow<T> {
-    pub fn new_complete(root: Box<dyn Widget<T>>, title: LabelText<T>, menu: Option<MenuDesc<T>>) -> Self {
-        PendingWindow { root, title, menu }
-    }
-
     pub fn new_from_boxed(root: Box<dyn Widget<T>>) -> PendingWindow<T> {
         PendingWindow {
             root,
             title: LocalizedString::new("app-name").into(),
-            menu: MenuDesc::platform_default()
+            menu: MenuDesc::platform_default(),
         }
     }
 
     pub fn new<W, F>(root: F) -> PendingWindow<T>
-        where
-            W: Widget<T> + 'static,
-            F: FnOnce() -> W + 'static{
+    where
+        W: Widget<T> + 'static,
+        F: FnOnce() -> W + 'static,
+    {
         PendingWindow {
             root: root().boxed(),
             title: LocalizedString::new("app-name").into(),
-            menu: MenuDesc::platform_default()
+            menu: MenuDesc::platform_default(),
         }
     }
 
@@ -197,9 +192,9 @@ impl<T: Data> AppLauncher<T> {
     }
 }
 
-impl WindowConfig{
-    pub fn new () -> WindowConfig{
-        WindowConfig{
+impl Default for WindowConfig {
+    fn default() -> Self {
+        WindowConfig {
             size: None,
             min_size: None,
             position: None,
@@ -209,7 +204,9 @@ impl WindowConfig{
             minimized: false,
         }
     }
+}
 
+impl WindowConfig {
     /// Set the window's initial drawing area size in [display points].
     ///
     /// You can pass in a tuple `(width, height)` or a [`Size`],
@@ -280,7 +277,7 @@ impl WindowConfig{
         self
     }
 
-    pub fn apply_to_builder(&self, builder: &mut WindowBuilder){
+    pub fn apply_to_builder(&self, builder: &mut WindowBuilder) {
         builder.resizable(self.resizable);
         builder.show_titlebar(self.show_titlebar);
 
@@ -321,7 +318,7 @@ impl<T: Data> WindowDesc<T> {
         // this just makes our API slightly cleaner; callers don't need to explicitly box.
         WindowDesc {
             pending: PendingWindow::new(root),
-            config: WindowConfig::new(),
+            config: WindowConfig::default(),
             id: WindowId::next(),
         }
     }
@@ -415,12 +412,9 @@ impl<T: Data> WindowDesc<T> {
 
     /// Attempt to create a platform window from this `WindowDesc`.
     pub(crate) fn build_native(
-        mut self,
+        self,
         state: &mut AppState<T>,
     ) -> Result<WindowHandle, PlatformError> {
-        let config = self.config;
-        let mut pending = self.pending;
-        state.build_native_window(self.id, pending, config)
+        state.build_native_window(self.id, self.pending, self.config)
     }
-
 }

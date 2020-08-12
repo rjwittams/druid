@@ -28,11 +28,13 @@ use crate::core::CommandQueue;
 use crate::ext_event::ExtEventHost;
 use crate::menu::ContextMenu;
 use crate::window::Window;
-use crate::{Command, Data, Env, Event, InternalEvent, KeyEvent, MenuDesc, Target, TimerToken, WindowDesc, WindowId, PlatformError};
+use crate::{
+    Command, Data, Env, Event, InternalEvent, KeyEvent, MenuDesc, PlatformError, Target,
+    TimerToken, WindowDesc, WindowId,
+};
 
-use crate::command::sys as sys_cmd;
 use crate::app::{PendingWindow, WindowConfig};
-use crate::widget::SubWindowRequirement;
+use crate::command::sys as sys_cmd;
 use druid_shell::WindowBuilder;
 
 pub(crate) const RUN_COMMANDS_TOKEN: IdleToken = IdleToken::new(1);
@@ -546,7 +548,7 @@ impl<T: Data> AppState<T> {
                     log::error!("failed to create window: '{}'", e);
                 }
             }
-            _ if cmd.is( sys_cmd::NEW_SUB_WINDOW) => {
+            _ if cmd.is(sys_cmd::NEW_SUB_WINDOW) => {
                 if let Err(e) = self.new_sub_window(cmd) {
                     log::error!("failed to create sub window: '{}'", e);
                 }
@@ -568,8 +570,6 @@ impl<T: Data> AppState<T> {
             _ => self.inner.borrow_mut().dispatch_cmd(target, cmd),
         }
     }
-
-
 
     fn show_open_panel(&mut self, cmd: Command, window_id: WindowId) {
         let options = cmd.get_unchecked(sys_cmd::SHOW_OPEN_PANEL).to_owned();
@@ -622,25 +622,24 @@ impl<T: Data> AppState<T> {
     }
 
     fn new_sub_window(&mut self, cmd: Command) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(transfer) = cmd.get(sys_cmd::NEW_SUB_WINDOW){
-            if let Some(swr) = transfer.take(){
+        if let Some(transfer) = cmd.get(sys_cmd::NEW_SUB_WINDOW) {
+            if let Some(swr) = transfer.take() {
                 let window = swr.make_sub_window(self)?;
                 window.show();
                 Ok(())
-            }else{
+            } else {
                 panic!(
                     "{} command must carry a SubWindowRequirement internally",
                     sys_cmd::NEW_SUB_WINDOW
                 )
             }
-        } else{
+        } else {
             panic!(
                 "{} command must carry a SingleUse<SubWindowRequirement>",
                 sys_cmd::NEW_SUB_WINDOW
             )
         }
     }
-
 
     fn request_close_window(&mut self, id: WindowId) {
         self.inner.borrow_mut().request_close_window(id);
@@ -688,7 +687,10 @@ impl<T: Data> AppState<T> {
         pending.title.resolve(&data, &env);
         builder.set_title(pending.title.display_text());
 
-        let platform_menu = pending.menu.as_mut().map(|m| m.build_window_menu(&data, &env));
+        let platform_menu = pending
+            .menu
+            .as_mut()
+            .map(|m| m.build_window_menu(&data, &env));
         if let Some(menu) = platform_menu {
             builder.set_menu(menu);
         }

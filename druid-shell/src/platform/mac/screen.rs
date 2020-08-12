@@ -17,34 +17,16 @@
 use crate::screen::Monitor;
 use crate::kurbo::Size;
 use cocoa::foundation::NSArray;
-use std::any::Any;
-use std::ffi::c_void;
-use std::mem;
-use std::sync::{Arc, Mutex, Weak};
-use std::time::Instant;
-
-use cocoa::appkit::{
-    CGFloat, NSApp, NSApplication, NSAutoresizingMaskOptions, NSBackingStoreBuffered, NSEvent,
-    NSView, NSViewHeightSizable, NSViewWidthSizable, NSWindow, NSWindowStyleMask, NSMainMenuWindowLevel,
-    NSScreen
-};
-use cocoa::base::{id, nil, BOOL, NO, YES};
-use cocoa::foundation::{NSAutoreleasePool, NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger};
-use core_graphics::context::CGContextRef;
-use foreign_types::ForeignTypeRef;
-use lazy_static::lazy_static;
-use log::{error, info};
-use objc::declare::ClassDecl;
-use objc::rc::WeakPtr;
-use objc::runtime::{Class, Object, Sel};
+use cocoa::base::{id};
 use objc::{class, msg_send, sel, sel_impl};
 use kurbo::Rect;
+use cocoa::appkit::NSScreen;
 
 pub(crate) fn get_display_size() -> Size {
-    unsafe  {
+    //unsafe  {
         let rect = get_monitors().iter().fold( Rect::ZERO, |rect, monitor| rect.union( monitor.virtual_rect()));
         rect.size()
-    }
+    //}
 }
 
 pub(crate) fn get_monitors() -> Vec<Monitor> {

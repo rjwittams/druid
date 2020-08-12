@@ -40,11 +40,11 @@ mod slider;
 mod spinner;
 mod split;
 mod stepper;
+mod sub_window;
 #[cfg(feature = "svg")]
 #[cfg_attr(docsrs, doc(cfg(feature = "svg")))]
 mod svg;
 mod switch;
-mod sub_window;
 mod textbox;
 mod view_switcher;
 #[allow(clippy::module_inception)]
@@ -76,6 +76,7 @@ pub use slider::Slider;
 pub use spinner::Spinner;
 pub use split::Split;
 pub use stepper::Stepper;
+pub use sub_window::{SubWindowHost, SubWindowRequirement};
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
@@ -85,7 +86,6 @@ pub use view_switcher::ViewSwitcher;
 pub use widget::{Widget, WidgetId};
 #[doc(hidden)]
 pub use widget_ext::WidgetExt;
-pub use sub_window::{SubWindowRequirement, SubWindowRequirementTransfer, SubWindowHost};
 
 /// The types required to implement a `Widget`.
 ///

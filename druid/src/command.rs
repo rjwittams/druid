@@ -129,8 +129,8 @@ pub mod sys {
     use std::any::Any;
 
     use super::Selector;
+    use crate::widget::SubWindowRequirement;
     use crate::{FileDialogOptions, FileInfo, SingleUse};
-    use crate::widget::{SubWindowRequirementTransfer, SubWindowRequirement};
 
     /// Quit the running application. This command is handled by the druid library.
     pub const QUIT_APP: Selector = Selector::new("druid-builtin.quit-app");
@@ -361,7 +361,6 @@ impl Command {
             )
         })
     }
-
 }
 
 impl<T: Any> SingleUse<T> {
