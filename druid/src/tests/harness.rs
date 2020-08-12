@@ -142,8 +142,8 @@ impl<T: Data> Harness<'_, T> {
         {
             let piet = target.0.as_mut().unwrap().render_context();
 
-            let desc = PendingWindow::new(root.boxed(),  LocalizedString::new("app-name").into(), MenuDesc::platform_default() );
-            let window = Window::new(WindowId::next(), Default::default(), desc);
+            let pending = PendingWindow::new(|| root);
+            let window = Window::new(WindowId::next(), Default::default(), pending);
 
             let inner = Inner {
                 data,

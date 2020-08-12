@@ -28,6 +28,8 @@ use crate::{
     LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Region, Target, TimerToken, UpdateCtx, Widget,
     WidgetId,
 };
+use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
+use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
 
 /// Our queue type
 pub(crate) type CommandQueue = VecDeque<(Target, Command)>;
@@ -114,6 +116,9 @@ pub(crate) struct WidgetState {
     pub(crate) children_changed: bool,
     /// Associate timers with widgets that requested them.
     pub(crate) timers: HashMap<TimerToken, WidgetId>,
+
+    // Port -> Host
+    pub(crate) sub_window_hosts: Option<Vec<WidgetId>>
 }
 
 /// Methods by which a widget can attempt to change focus state.
@@ -708,10 +713,19 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             let inner_event = modified_event.as_ref().unwrap_or(event);
             inner_ctx.widget_state.has_active = false;
 
-            self.inner.event(&mut inner_ctx, &inner_event, data, env);
-
-            inner_ctx.widget_state.has_active |= inner_ctx.widget_state.is_active;
-            ctx.is_handled |= inner_ctx.is_handled;
+            match inner_event{
+                Event::Command(cmd) if cmd.is(SUB_WINDOW_HOST_TO_PARENT) =>{
+                    if let Some(update) = cmd.get_unchecked(SUB_WINDOW_HOST_TO_PARENT).downcast_ref::<T>(){
+                        *data = (*update).clone();
+                    }
+                    ctx.is_handled = true
+                },
+                _=>{
+                    self.inner.event(&mut inner_ctx, &inner_event, data, env);
+                    inner_ctx.widget_state.has_active |= inner_ctx.widget_state.is_active;
+                    ctx.is_handled |= inner_ctx.is_handled;
+                }
+            }
         }
 
         // Always merge even if not needed, because merging is idempotent and gives us simpler code.
@@ -855,6 +869,15 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             _ => (),
         }
 
+        if let Some(hosts) = &self.state.sub_window_hosts {
+            for host in hosts{
+                let cloned: T = (*data).clone();
+                let command = SUB_WINDOW_PARENT_TO_HOST.with(Box::new(cloned));
+
+                ctx.submit_command(command, *host)
+            }
+        }
+
         let mut child_ctx = UpdateCtx {
             state: ctx.state,
             widget_state: &mut self.state,
@@ -898,6 +921,7 @@ impl WidgetState {
             children: Bloom::new(),
             children_changed: false,
             timers: HashMap::new(),
+            sub_window_hosts: None
         }
     }
 
@@ -945,6 +969,14 @@ impl WidgetState {
 
     pub(crate) fn layout_rect(&self) -> Rect {
         self.layout_rect.unwrap_or_default()
+    }
+
+    pub(crate) fn add_sub_window_host(&mut self, host_id: WidgetId){
+        if let Some(ports ) =  &mut self.sub_window_hosts {
+            ports.push(host_id);
+        }else{
+            self.sub_window_hosts = Some(vec![host_id])
+        }
     }
 }
 

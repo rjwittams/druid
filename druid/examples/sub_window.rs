@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use druid::widget::{Align, Flex, Label, TextBox, Button, SubWindowRequirement, SubWindowPort};
-use druid::{AppLauncher, Data, Env, Lens, LensExt, LocalizedString, Widget, WidgetExt, WindowDesc, WidgetPod, LifeCycle, EventCtx, PaintCtx, LifeCycleCtx, BoxConstraints, Size, LayoutCtx, Event, UpdateCtx, Rect, Point, Color, RenderContext, WindowConfig};
+use druid::widget::{Align, Flex, Label, TextBox, Button, SubWindowRequirement};
+use druid::{AppLauncher, Data, Env, Lens, LensExt, LocalizedString,
+            Widget, WidgetExt, WindowDesc,  Size,
+             Point, WindowConfig};
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -51,64 +53,6 @@ pub fn main() {
         .expect("Failed to launch application");
 }
 
-struct SubOwner{
-    port_pod: Option<WidgetPod<SubState,  SubWindowPort<SubState>>>
-}
-
-impl SubOwner {
-    pub fn new() -> Self {
-        SubOwner { port_pod: None }
-    }
-}
-
-impl Widget<SubState> for SubOwner{
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SubState, env: &Env) {
-        match event{
-            Event::MouseDown(e)=>{
-                let (req, port) = SubWindowRequirement::make_requirement_and_port(
-                    WindowConfig::new()
-                        //.show_titlebar(false)
-                        .window_size( Size::new(100., 100.) )
-                        .set_position( Point::new(1000.0, 500.0) ),
-                    TextBox::new().lens(SubState::my_stuff),
-                    (*data).clone());
-                self.port_pod = Some(WidgetPod::new(port));
-                ctx.new_sub_window(req);
-                ctx.set_handled();
-                ctx.children_changed();
-            }
-            _=> if let Some(pod) = &mut self.port_pod {
-                pod.event(ctx, event, data, env);
-            }
-        }
-    }
-
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SubState, env: &Env) {
-        if let Some(pod) = &mut self.port_pod {
-            pod.lifecycle(ctx, event, data, env);
-        }
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &SubState, data: &SubState, env: &Env) {
-        if let Some(pod) = &mut self.port_pod {
-            pod.update(ctx, data, env);
-        }
-    }
-
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &SubState, env: &Env) -> Size {
-        if let Some(pod) = &mut self.port_pod{
-            let size = pod.layout(ctx, bc, data, env);
-            pod.set_layout_rect(ctx, data, env, Rect::from_origin_size(Point::ORIGIN, size));
-        }
-        bc.constrain(Size::new(100.0, 100.0))
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &SubState, env: &Env) {
-        let sz = ctx.size();
-        ctx.fill( Rect::from_origin_size(Point::ZERO, sz), &Color::WHITE )
-    }
-}
-
 fn build_root_widget() -> impl Widget<HelloState> {
     // a label that will determine its text based on the current app data.
     let label = Label::new(|data: &HelloState, _env: &Env| format!("Hello {}! {} ", data.name, data.sub.my_stuff));
@@ -118,7 +62,18 @@ fn build_root_widget() -> impl Widget<HelloState> {
         .fix_width(TEXT_BOX_WIDTH)
         .lens(HelloState::sub.then(SubState::my_stuff));
 
-    let button = SubOwner::new().lens(HelloState::sub);
+    let button = Button::new("Make sub window").on_click( |ctx, data: &mut SubState, _env |{
+        let req= SubWindowRequirement::new(
+            ctx.widget_id(),
+            WindowConfig::new()
+                //.show_titlebar(false)
+                .window_size( Size::new(100., 100.) )
+                .set_position( Point::new(1000.0, 500.0) ),
+            TextBox::new().lens(SubState::my_stuff),
+            (*data).clone());
+
+        ctx.new_sub_window(req)
+    }).center().lens(HelloState::sub);
 
     // arrange the two widgets vertically, with some padding
     let layout = Flex::column()

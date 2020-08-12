@@ -8,12 +8,13 @@ use druid_shell::Error;
 use std::marker::PhantomData;
 use std::cell::RefCell;
 use crate::app::{WindowConfig, PendingWindow};
+use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
+use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
 
 // We have to have no generics, as both ends would need to know them.
 // So we erase everything to ()
 pub struct SubWindowRequirement {
-    host_id: WidgetId,
-    port_id: WidgetId,
+    pub(crate) host_id: WidgetId,
     pub(crate) sub_window_host: Box<dyn Widget<()>>,
     pub(crate) window_config: WindowConfig,
 }
@@ -48,14 +49,10 @@ impl <T> Lens<T, ()> for UnitLens<T>{
 }
 
 impl SubWindowRequirement {
-    pub fn make_requirement_and_port<U: Data, W: Widget<U> + 'static >(window_config: WindowConfig, widget: W, data: U) -> (Self, SubWindowPort<U>) {
+    pub fn new<U: Data, W: Widget<U> + 'static >(parent_id: WidgetId, window_config: WindowConfig, widget: W, data: U) -> Self {
         let host_id = WidgetId::next();
-        let port_id = WidgetId::next();
-
-        let sub_window_host = SubWindowHost::new(host_id, port_id, data, widget).boxed();
-        let requirement = SubWindowRequirement { host_id: WidgetId::next(), port_id: WidgetId::next(), sub_window_host,  window_config };
-        let port = SubWindowPort::new(port_id, host_id);
-        (requirement, port)
+        let sub_window_host = SubWindowHost::new(host_id, parent_id, data, widget).boxed();
+        SubWindowRequirement { host_id, sub_window_host,  window_config }
     }
 
     pub (crate) fn make_sub_window<T: Data>(mut self, app_state: &mut AppState<T>) -> Result<WindowHandle, Error> {
@@ -65,82 +62,26 @@ impl SubWindowRequirement {
 
 }
 
-pub struct SubWindowPort<U>{
-    id: WidgetId,
-    host_id: WidgetId,
-    phantom_u: PhantomData<U>
-}
-
-impl<U> SubWindowPort<U> {
-    pub fn new(id: WidgetId, host_id: WidgetId) -> Self {
-        SubWindowPort { id, host_id, phantom_u: Default::default() }
-    }
-}
 
 pub struct SubWindowHost<U, W: Widget<U>>{
     id: WidgetId,
-    port_id: WidgetId,
+    parent_id: WidgetId,
     data: U,
     child: WidgetPod<U, W>,
 }
 
 impl<U, W: Widget<U>> SubWindowHost<U, W> {
     pub fn new(id: WidgetId, port_id: WidgetId, data: U, widget: W) -> Self {
-        SubWindowHost {id, port_id, data, child: WidgetPod::new(widget)}
+        SubWindowHost {id, parent_id: port_id, data, child: WidgetPod::new(widget)}
     }
 }
-
-pub(crate) const SUB_WINDOW_PORT_TO_HOST: Selector<Box<dyn Any>> =
-    Selector::new("druid-builtin.port_to_host");
-
-pub(crate) const SUB_WINDOW_HOST_TO_PORT: Selector<Box<dyn Any>> =
-    Selector::new("druid-builtin.host_to_port");
-
-// Should this even be a widget. Just needs to be delegated to
-impl <U: Data> Widget<U> for SubWindowPort<U> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut U, env: &Env) {
-        match event {
-            Event::Command(cmd) if cmd.is(SUB_WINDOW_HOST_TO_PORT) =>{
-                if let Some(update) = cmd.get_unchecked(SUB_WINDOW_HOST_TO_PORT).downcast_ref::<U>(){
-                     *data = (*update).clone();
-                }
-                ctx.set_handled();
-             },
-            _=>{}
-        }
-    }
-
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &U, env: &Env) {
-
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &U, data: &U, env: &Env) {
-        if !old_data.same(data){
-            ctx.submit_command(SUB_WINDOW_PORT_TO_HOST.with( Box::new(data.clone()) ), self.host_id)
-        }
-    }
-
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &U, env: &Env) -> Size {
-
-        Size::ZERO
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &U, env: &Env) {
-
-    }
-
-    fn id(&self) -> Option<WidgetId> {
-        Some(self.id)
-    }
-}
-
 
 impl <U: Data, W: Widget<U>>  Widget<()> for SubWindowHost<U, W>{
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (), env: &Env) {
         match event{
-            Event::Command(cmd) if cmd.is(SUB_WINDOW_PORT_TO_HOST) =>{
-                if let Some(update) = cmd.get_unchecked(SUB_WINDOW_PORT_TO_HOST).downcast_ref::<U>(){
-                    self.data = update.clone();
+            Event::Command(cmd) if cmd.is(SUB_WINDOW_PARENT_TO_HOST) =>{
+                if let Some(update) = cmd.get_unchecked(SUB_WINDOW_PARENT_TO_HOST).downcast_ref::<U>(){
+                    self.data = update.deref().clone();
                     let mut update_ctx = UpdateCtx{
                          state: ctx.state,
                          widget_state: ctx.widget_state
@@ -159,7 +100,7 @@ impl <U: Data, W: Widget<U>>  Widget<()> for SubWindowHost<U, W>{
                 };
                 self.child.update(&mut update_ctx, &self.data, env);
                 if !old.same(&self.data){
-                    ctx.submit_command(SUB_WINDOW_HOST_TO_PORT.with( Box::new(self.data.clone()) ), self.port_id)
+                    ctx.submit_command(SUB_WINDOW_HOST_TO_PARENT.with( Box::new(self.data.clone()) ), self.parent_id)
                 }
             }
         }

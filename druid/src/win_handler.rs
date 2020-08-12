@@ -623,20 +623,19 @@ impl<T: Data> AppState<T> {
 
     fn new_sub_window(&mut self, cmd: Command) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(transfer) = cmd.get(sys_cmd::NEW_SUB_WINDOW){
-            let option = transfer.inner.replace(None);
-            if let Some(swr) = option{
+            if let Some(swr) = transfer.take(){
                 let window = swr.make_sub_window(self)?;
                 window.show();
                 Ok(())
             }else{
                 panic!(
-                    "{} command must carry a SubWindowRequirement",
+                    "{} command must carry a SubWindowRequirement internally",
                     sys_cmd::NEW_SUB_WINDOW
                 )
             }
         } else{
             panic!(
-                "{} command must carry a SubWindowRequirementTransfer",
+                "{} command must carry a SingleUse<SubWindowRequirement>",
                 sys_cmd::NEW_SUB_WINDOW
             )
         }

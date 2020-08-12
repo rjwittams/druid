@@ -85,7 +85,7 @@ pub use view_switcher::ViewSwitcher;
 pub use widget::{Widget, WidgetId};
 #[doc(hidden)]
 pub use widget_ext::WidgetExt;
-pub use sub_window::{SubWindowRequirement, SubWindowRequirementTransfer, SubWindowHost, SubWindowPort};
+pub use sub_window::{SubWindowRequirement, SubWindowRequirementTransfer, SubWindowHost};
 
 /// The types required to implement a `Widget`.
 ///
