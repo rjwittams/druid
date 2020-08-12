@@ -69,10 +69,11 @@ fn build_root_widget() -> impl Widget<HelloState> {
         .on_click(|ctx, data: &mut SubState, _env| {
             let req = SubWindowRequirement::new(
                 ctx.widget_id(),
-                WindowConfig::new()
+                WindowConfig::default()
                     //.show_titlebar(false)
                     .window_size(Size::new(100., 100.))
                     .set_position(Point::new(1000.0, 500.0)),
+                false,
                 TextBox::new().lens(SubState::my_stuff),
                 data.clone(),
             );

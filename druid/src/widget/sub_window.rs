@@ -13,7 +13,7 @@ use std::ops::Deref;
 // We have to have no generics, as both ends would need to know them.
 // So we erase everything to ()
 pub struct SubWindowRequirement {
-    pub(crate) host_id: WidgetId,
+    pub(crate) host_id: Option<WidgetId>, // Present if updates should be sent from the pod to the sub window.
     pub(crate) sub_window_host: Box<dyn Widget<()>>,
     pub(crate) window_config: WindowConfig,
 }
@@ -39,17 +39,19 @@ impl<T> Lens<T, ()> for UnitLens<T> {
     }
 }
 
+
 impl SubWindowRequirement {
     pub fn new<U: Data, W: Widget<U> + 'static>(
         parent_id: WidgetId,
         window_config: WindowConfig,
+        sync: bool,
         widget: W,
         data: U,
     ) -> Self {
         let host_id = WidgetId::next();
-        let sub_window_host = SubWindowHost::new(host_id, parent_id, data, widget).boxed();
+        let sub_window_host = SubWindowHost::new(host_id, parent_id,  sync, data, widget).boxed();
         SubWindowRequirement {
-            host_id,
+            host_id: if sync { Some(host_id) } else { None},
             sub_window_host,
             window_config,
         }
@@ -68,15 +70,17 @@ impl SubWindowRequirement {
 pub struct SubWindowHost<U, W: Widget<U>> {
     id: WidgetId,
     parent_id: WidgetId,
+    sync: bool,
     data: U,
     child: WidgetPod<U, W>,
 }
 
 impl<U, W: Widget<U>> SubWindowHost<U, W> {
-    pub fn new(id: WidgetId, port_id: WidgetId, data: U, widget: W) -> Self {
+    pub fn new(id: WidgetId, port_id: WidgetId, sync: bool, data: U, widget: W) -> Self {
         SubWindowHost {
             id,
             parent_id: port_id,
+            sync,
             data,
             child: WidgetPod::new(widget),
         }
@@ -86,7 +90,7 @@ impl<U, W: Widget<U>> SubWindowHost<U, W> {
 impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, _data: &mut (), env: &Env) {
         match event {
-            Event::Command(cmd) if cmd.is(SUB_WINDOW_PARENT_TO_HOST) => {
+            Event::Command(cmd) if self.sync && cmd.is(SUB_WINDOW_PARENT_TO_HOST) => {
                 if let Some(update) = cmd
                     .get_unchecked(SUB_WINDOW_PARENT_TO_HOST)
                     .downcast_ref::<U>()
@@ -109,7 +113,7 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
                     widget_state: ctx.widget_state,
                 };
                 self.child.update(&mut update_ctx, &self.data, env);
-                if !old.same(&self.data) {
+                if self.sync && !old.same(&self.data) {
                     ctx.submit_command(
                         SUB_WINDOW_HOST_TO_PARENT.with(Box::new(self.data.clone())),
                         self.parent_id,

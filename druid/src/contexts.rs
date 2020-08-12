@@ -28,7 +28,7 @@ use crate::{
     Target, Text, TimerToken, Vec2, WidgetId, WindowDesc, WindowHandle, WindowId,
 };
 
-use crate::widget::SubWindowRequirement;
+use crate::widget::{SubWindowRequirement};
 
 /// A macro for implementing methods on multiple contexts.
 ///
@@ -422,9 +422,12 @@ impl EventCtx<'_, '_> {
     }
 
     // TODO - dynamically check that the type of the pod we are registering this on is the same as the type of the
-    // requirement. Needs type ids recorded. This happens if you don't have a pod between you and a lens.
+    // requirement. Needs type ids recorded. This goes wrong if you don't have a pod between you and a lens.
     pub fn new_sub_window(&mut self, requirement: SubWindowRequirement) {
-        self.widget_state.add_sub_window_host(requirement.host_id);
+        if let Some(id) =  requirement.host_id{
+            self.widget_state.add_sub_window_host(id);
+        }
+
         self.submit_command(
             commands::NEW_SUB_WINDOW.with(SingleUse::new(requirement)),
             None,
