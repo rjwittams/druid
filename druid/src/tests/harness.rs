@@ -16,10 +16,10 @@
 
 use std::path::Path;
 
+use crate::app::PendingWindow;
 use crate::core::{CommandQueue, WidgetState};
 use crate::piet::{BitmapTarget, Device, Error, ImageFormat, Piet};
 use crate::*;
-use crate::app::PendingWindow;
 
 pub(crate) const DEFAULT_SIZE: Size = Size::new(400., 400.);
 

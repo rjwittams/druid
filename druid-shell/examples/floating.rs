@@ -15,10 +15,13 @@
 use std::any::Any;
 use std::collections::HashMap;
 
-use druid_shell::kurbo::{Line, Rect, Size, Point};
+use druid_shell::kurbo::{Line, Point, Rect, Size};
 use druid_shell::piet::{Color, RenderContext};
 
-use druid_shell::{Application, Cursor, FileDialogOptions, FileSpec, HotKey, KeyEvent, Menu, MouseEvent, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, IdleToken, KbKey, Screen};
+use druid_shell::{
+    Application, Cursor, FileDialogOptions, FileSpec, HotKey, IdleToken, KbKey, KeyEvent, Menu,
+    MouseEvent, Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle,
+};
 use piet_common::Piet;
 use std::time::Duration;
 
@@ -29,15 +32,19 @@ struct HelloState {
     size: Size,
     handle: WindowHandle,
     app: Application,
-    timers: HashMap<TimerToken, WindowHandle>
+    timers: HashMap<TimerToken, WindowHandle>,
 }
 
 impl HelloState {
     pub fn new(app: Application) -> Self {
-        HelloState { size: Default::default(), handle: Default::default(), app , timers: Default::default()}
+        HelloState {
+            size: Default::default(),
+            handle: Default::default(),
+            app,
+            timers: Default::default(),
+        }
     }
 }
-
 
 impl WinHandler for HelloState {
     fn connect(&mut self, handle: &WindowHandle) {
@@ -71,20 +78,20 @@ impl WinHandler for HelloState {
     }
 
     fn key_down(&mut self, event: KeyEvent) -> bool {
-        match &event.key{
+        match &event.key {
             KbKey::Character(k) if k == "m" => {
                 println!("Minimising");
                 self.handle.minimize();
-            },
+            }
             KbKey::Character(k) if k == "M" => {
                 println!("Maximising");
                 self.handle.maximize();
-            },
+            }
             KbKey::Character(k) if k == "s" => {
                 let monitors = Screen::get_monitors();
                 log::info!("Monitors {:?}", monitors)
             }
-            _=>{}
+            _ => {}
         }
         println!("keydown: {:?}", event);
         false
@@ -104,20 +111,23 @@ impl WinHandler for HelloState {
     }
 
     fn mouse_down(&mut self, event: &MouseEvent) {
+        let wh = FloatingPanel::make_floating_panel(
+            self.app.clone(),
+            self.handle.clone(),
+            event.pos,
+            (100., 25.).into(),
+        );
 
-        let wh =  FloatingPanel::make_floating_panel(self.app.clone(),self.handle.clone(), event.pos, (100., 25.).into() );
-
-        let tt =  self.handle.request_timer( Duration::from_secs(2) );
+        let tt = self.handle.request_timer(Duration::from_secs(2));
         self.timers.insert(tt, wh);
     }
-
 
     fn timer(&mut self, id: TimerToken) {
         if let Some(handle) = self.timers.remove(&id) {
             handle.close();
             println!("Removed window: ");
-        }else{
-            println!("Unknown timer {:?}",  id)
+        } else {
+            println!("Unknown timer {:?}", id)
         }
     }
 
@@ -137,15 +147,20 @@ impl WinHandler for HelloState {
 #[derive(Default)]
 struct FloatingPanel {
     handle: WindowHandle,
-    size: Size
+    size: Size,
 }
 
-impl FloatingPanel{
+impl FloatingPanel {
     /* Make a floating panel appear at a position
      */
-    fn make_floating_panel(app: Application, parent:WindowHandle, child_position_on_parent: Point, size: Size)->WindowHandle{
+    fn make_floating_panel(
+        app: Application,
+        parent: WindowHandle,
+        child_position_on_parent: Point,
+        size: Size,
+    ) -> WindowHandle {
         let mut builder = WindowBuilder::new(app.clone());
-        builder.set_handler(Box::new( FloatingPanel::default() ));
+        builder.set_handler(Box::new(FloatingPanel::default()));
         builder.show_titlebar(false);
         builder.set_size(size);
 
@@ -170,10 +185,9 @@ impl WinHandler for FloatingPanel {
     fn paint(&mut self, piet: &mut Piet, invalid_rect: Rect) -> bool {
         let rect = self.size.to_rect();
         piet.fill(rect, &Color::WHITE);
-        piet.stroke(Line::new(rect.origin() ,  (rect.x1, rect.y1)  ), &FG_COLOR, 1.0);
+        piet.stroke(Line::new(rect.origin(), (rect.x1, rect.y1)), &FG_COLOR, 1.0);
         false
     }
-
 
     fn as_any(&mut self) -> &mut dyn Any {
         self
@@ -183,9 +197,7 @@ impl WinHandler for FloatingPanel {
         self.size = size;
     }
 
-    fn mouse_down(&mut self, event: &MouseEvent) {
-
-    }
+    fn mouse_down(&mut self, event: &MouseEvent) {}
 }
 
 fn main() {
@@ -217,9 +229,6 @@ fn main() {
 
     let window = builder.build().unwrap();
     window.show();
-
-
-
 
     app.run(None);
 }
