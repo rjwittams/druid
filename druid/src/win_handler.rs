@@ -28,14 +28,12 @@ use crate::core::CommandQueue;
 use crate::ext_event::ExtEventHost;
 use crate::menu::ContextMenu;
 use crate::window::Window;
-use crate::{
-    Command, Data, Env, Event, InternalEvent, KeyEvent, MenuDesc, Target, TimerToken, WindowDesc,
-    WindowId,
-};
+use crate::{Command, Data, Env, Event, InternalEvent, KeyEvent, MenuDesc, Target, TimerToken, WindowDesc, WindowId, PlatformError};
 
 use crate::command::sys as sys_cmd;
-use crate::app::PendingWindow;
+use crate::app::{PendingWindow, WindowConfig};
 use crate::widget::SubWindowRequirement;
+use druid_shell::WindowBuilder;
 
 pub(crate) const RUN_COMMANDS_TOKEN: IdleToken = IdleToken::new(1);
 
@@ -312,7 +310,6 @@ impl<T: Data> Inner<T> {
         if !self.delegate_cmd(target, &cmd) {
             return;
         }
-        log::info!("Inner dispatch cmd {:?} {:?}", target, cmd);
         match target {
             Target::Window(id) => {
                 // first handle special window-level events
@@ -330,11 +327,9 @@ impl<T: Data> Inner<T> {
             // in this case we send it to every window that might contain
             // this widget, breaking if the event is handled.
             Target::Widget(id) => {
-                log::info!("App trying to send  targeted cmd to windows {:?} {:?} {:?}", target, cmd, id);
                 for w in self.windows.iter_mut().filter(|w| w.may_contain_widget(id)) {
                     let event =
                         Event::Internal(InternalEvent::TargetedCommand(id.into(), cmd.clone()));
-                    log::info!("App  send targeted cmd to window {:?} {:?} {:?} {:?}", target, cmd, id, w.id);
                     if w.event(&mut self.command_queue, event, &mut self.data, &self.env) {
                         break;
                     }
@@ -541,7 +536,6 @@ impl<T: Data> AppState<T> {
     /// windows) have their logic here; other commands are passed to the window.
     fn handle_cmd(&mut self, target: Target, cmd: Command) {
         use Target as T;
-        log::info!("AppState handling command {:?} {:?}", target, cmd);
         match target {
             // these are handled the same no matter where they come from
             _ if cmd.is(sys_cmd::QUIT_APP) => self.quit(),
@@ -678,6 +672,33 @@ impl<T: Data> AppState<T> {
     fn hide_others(&mut self) {
         #[cfg(target_os = "macos")]
         self.inner.borrow().app.hide_others()
+    }
+
+    pub(crate) fn build_native_window(
+        &mut self,
+        id: WindowId,
+        mut pending: PendingWindow<T>,
+        config: WindowConfig,
+    ) -> Result<WindowHandle, PlatformError> {
+        let mut builder = WindowBuilder::new(self.app());
+        config.apply_to_builder(&mut builder);
+
+        let data = self.data();
+        let env = self.env();
+
+        pending.title.resolve(&data, &env);
+        builder.set_title(pending.title.display_text());
+
+        let platform_menu = pending.menu.as_mut().map(|m| m.build_window_menu(&data, &env));
+        if let Some(menu) = platform_menu {
+            builder.set_menu(menu);
+        }
+
+        let handler = DruidHandler::new_shared((*self).clone(), id);
+        builder.set_handler(Box::new(handler));
+
+        self.add_window(id, pending);
+        builder.build()
     }
 }
 

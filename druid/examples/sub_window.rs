@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use druid::widget::{Align, Flex, Label, TextBox, Button, SubWindowRequirement, SubWindowPort};
-use druid::{AppLauncher, Data, Env, Lens, LensExt, LocalizedString, Widget, WidgetExt, WindowDesc, WidgetPod, LifeCycle, EventCtx, PaintCtx, LifeCycleCtx, BoxConstraints, Size, LayoutCtx, Event, UpdateCtx, Rect, Point, Color, RenderContext};
+use druid::{AppLauncher, Data, Env, Lens, LensExt, LocalizedString, Widget, WidgetExt, WindowDesc, WidgetPod, LifeCycle, EventCtx, PaintCtx, LifeCycleCtx, BoxConstraints, Size, LayoutCtx, Event, UpdateCtx, Rect, Point, Color, RenderContext, WindowConfig};
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -65,8 +65,13 @@ impl Widget<SubState> for SubOwner{
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SubState, env: &Env) {
         match event{
             Event::MouseDown(e)=>{
-                let desc = WindowDesc::new(|| TextBox::new().lens(SubState::my_stuff));
-                let (req, port) = SubWindowRequirement::make_requirement_and_port( (*data).clone(), desc );
+                let (req, port) = SubWindowRequirement::make_requirement_and_port(
+                    WindowConfig::new()
+                        //.show_titlebar(false)
+                        .window_size( Size::new(100., 100.) )
+                        .set_position( Point::new(1000.0, 500.0) ),
+                    TextBox::new().lens(SubState::my_stuff),
+                    (*data).clone());
                 self.port_pod = Some(WidgetPod::new(port));
                 ctx.new_sub_window(req);
                 ctx.set_handled();

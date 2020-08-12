@@ -97,6 +97,9 @@ pub(crate) struct WindowBuilder {
     menu: Option<Menu>,
     size: Size,
     min_size: Option<Size>,
+    position: Option<Point>,
+    maximized: bool,
+    minimized: bool,
     resizable: bool,
     show_titlebar: bool,
     borderless: bool
@@ -134,6 +137,9 @@ impl WindowBuilder {
             menu: None,
             size: Size::new(500.0, 400.0),
             min_size: None,
+            position: None,
+            maximized: false,
+            minimized: false,
             resizable: true,
             show_titlebar: true,
             borderless: false
@@ -165,16 +171,16 @@ impl WindowBuilder {
         self.show_titlebar = show_titlebar;
     }
 
-    pub fn set_position(&mut self, _position: Point) {
-        log::warn!("WindowBuilder::set_position is currently unimplemented for mac platforms.");
+    pub fn set_position(&mut self, position: Point) {
+        self.position = Some(position)
     }
 
-    pub fn maximized(&self) {
-        log::warn!("WindowBuilder::maximized is currently unimplemented for mac platforms.");
+    pub fn maximized(&mut self) {
+        self.maximized = true;
     }
 
-    pub fn minimized(&self) {
-        log::warn!("WindowBuilder::minimized is currently unimplemented for mac platforms.");
+    pub fn minimized(&mut self) {
+        self.minimized = true;
     }
 
     pub fn set_title(&mut self, title: impl Into<String>) {
@@ -243,6 +249,16 @@ impl WindowBuilder {
                 nsview: view_state.nsview.clone(),
                 idle_queue,
             };
+
+            if let Some(pos) = self.position{
+                handle.set_position(pos);
+            }
+            if self.minimized{
+                handle.minimize()
+            }else if self.maximized {
+                handle.maximize()
+            }
+
             (*view_state).handler.connect(&handle.clone().into());
             (*view_state).handler.scale(Scale::default());
             (*view_state)

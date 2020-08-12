@@ -1,4 +1,4 @@
-use crate::{Widget, WidgetPod, LifeCycle, EventCtx, PaintCtx, LifeCycleCtx, BoxConstraints, Size, LayoutCtx, Event, Env, UpdateCtx, Selector, WidgetId, WidgetExt, Rect, Point, WindowDesc, WindowHandle, Data, Lens};
+use crate::{Widget, WidgetPod, LifeCycle, EventCtx, PaintCtx, LifeCycleCtx, BoxConstraints, Size, LayoutCtx, Event, Env, UpdateCtx, Selector, WidgetId, WidgetExt, Rect, Point, WindowDesc, WindowHandle, Data, Lens, WindowId};
 use std::rc::Rc;
 use std::ops::Deref;
 use std::borrow::BorrowMut;
@@ -7,13 +7,15 @@ use crate::win_handler::AppState;
 use druid_shell::Error;
 use std::marker::PhantomData;
 use std::cell::RefCell;
+use crate::app::{WindowConfig, PendingWindow};
 
 // We have to have no generics, as both ends would need to know them.
 // So we erase everything to ()
 pub struct SubWindowRequirement {
     host_id: WidgetId,
     port_id: WidgetId,
-    pub(crate) window_desc: WindowDesc<()>,
+    pub(crate) sub_window_host: Box<dyn Widget<()>>,
+    pub(crate) window_config: WindowConfig,
 }
 
 pub struct SubWindowRequirementTransfer{
@@ -37,35 +39,28 @@ impl<T> UnitLens<T> {
 }
 
 impl <T> Lens<T, ()> for UnitLens<T>{
-    fn with<V, F: FnOnce(&()) -> V>(&self, data: &T, f: F) -> V {
+    fn with<V, F: FnOnce(&()) -> V>(&self, _data: &T, f: F) -> V {
         f(&())
     }
-    fn with_mut<V, F: FnOnce(&mut ()) -> V>(&self, data: &mut T, f: F) -> V {
+    fn with_mut<V, F: FnOnce(&mut ()) -> V>(&self, _data: &mut T, f: F) -> V {
         f(&mut ())
     }
 }
 
 impl SubWindowRequirement {
-    pub fn make_requirement_and_port<U: Data>(data: U, window_desc: WindowDesc<U>) -> (Self, SubWindowPort<U>) {
+    pub fn make_requirement_and_port<U: Data, W: Widget<U> + 'static >(window_config: WindowConfig, widget: W, data: U) -> (Self, SubWindowPort<U>) {
         let host_id = WidgetId::next();
         let port_id = WidgetId::next();
 
-        // Annoying that we have 2 levels of boxing here
-        let unit_window: WindowDesc<()> = window_desc.map_widget(|widget|{
-            let pod = WidgetPod::new(widget);
-            SubWindowHost::new(host_id, port_id, data, pod).boxed()
-        });
-
-        let requirement = SubWindowRequirement { host_id: WidgetId::next(), port_id: WidgetId::next(), window_desc: unit_window };
+        let sub_window_host = SubWindowHost::new(host_id, port_id, data, widget).boxed();
+        let requirement = SubWindowRequirement { host_id: WidgetId::next(), port_id: WidgetId::next(), sub_window_host,  window_config };
         let port = SubWindowPort::new(port_id, host_id);
         (requirement, port)
     }
 
     pub (crate) fn make_sub_window<T: Data>(mut self, app_state: &mut AppState<T>) -> Result<WindowHandle, Error> {
-        let app_level_window_desc =  self.window_desc.map_widget(|widget|{
-            widget.lens( UnitLens::new() ).boxed()
-        });
-        app_level_window_desc.build_native(app_state)
+        let pending = PendingWindow::new_from_boxed(self.sub_window_host.lens( UnitLens::new() ).boxed() );
+        app_state.build_native_window(WindowId::next(), pending, self.window_config)
     }
 
 }
@@ -82,16 +77,16 @@ impl<U> SubWindowPort<U> {
     }
 }
 
-pub struct SubWindowHost<U>{
+pub struct SubWindowHost<U, W: Widget<U>>{
     id: WidgetId,
     port_id: WidgetId,
     data: U,
-    child: WidgetPod<U, Box<dyn Widget<U>>>,
+    child: WidgetPod<U, W>,
 }
 
-impl<U> SubWindowHost<U> {
-    pub fn new(id: WidgetId, port_id: WidgetId, data: U, widget: WidgetPod<U, Box<dyn Widget<U>>>) -> Self {
-        SubWindowHost {id, port_id, data, child: widget}
+impl<U, W: Widget<U>> SubWindowHost<U, W> {
+    pub fn new(id: WidgetId, port_id: WidgetId, data: U, widget: W) -> Self {
+        SubWindowHost {id, port_id, data, child: WidgetPod::new(widget)}
     }
 }
 
@@ -107,7 +102,6 @@ impl <U: Data> Widget<U> for SubWindowPort<U> {
         match event {
             Event::Command(cmd) if cmd.is(SUB_WINDOW_HOST_TO_PORT) =>{
                 if let Some(update) = cmd.get_unchecked(SUB_WINDOW_HOST_TO_PORT).downcast_ref::<U>(){
-                    log::info!("Got update from host");
                      *data = (*update).clone();
                 }
                 ctx.set_handled();
@@ -122,7 +116,6 @@ impl <U: Data> Widget<U> for SubWindowPort<U> {
 
     fn update(&mut self, ctx: &mut UpdateCtx, old_data: &U, data: &U, env: &Env) {
         if !old_data.same(data){
-            log::info!("Sending update from port to id {:?}", self.host_id);
             ctx.submit_command(SUB_WINDOW_PORT_TO_HOST.with( Box::new(data.clone()) ), self.host_id)
         }
     }
@@ -142,14 +135,12 @@ impl <U: Data> Widget<U> for SubWindowPort<U> {
 }
 
 
-impl <U:Data> Widget<()> for SubWindowHost<U>{
+impl <U: Data, W: Widget<U>>  Widget<()> for SubWindowHost<U, W>{
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (), env: &Env) {
         match event{
             Event::Command(cmd) if cmd.is(SUB_WINDOW_PORT_TO_HOST) =>{
-                log::info!("Got update from port my id {:?}", self.id );
                 if let Some(update) = cmd.get_unchecked(SUB_WINDOW_PORT_TO_HOST).downcast_ref::<U>(){
                     self.data = update.clone();
-                    log::info!("Content update from port my id {:?}", self.id );
                     let mut update_ctx = UpdateCtx{
                          state: ctx.state,
                          widget_state: ctx.widget_state
@@ -168,7 +159,6 @@ impl <U:Data> Widget<()> for SubWindowHost<U>{
                 };
                 self.child.update(&mut update_ctx, &self.data, env);
                 if !old.same(&self.data){
-                    log::info!("Sending update from host");
                     ctx.submit_command(SUB_WINDOW_HOST_TO_PORT.with( Box::new(self.data.clone()) ), self.port_id)
                 }
             }
@@ -180,7 +170,7 @@ impl <U:Data> Widget<()> for SubWindowHost<U>{
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, old_data: &(), data: &(), env: &Env) {
-        // Can't use this change afaict
+        // Can't use this change
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(), env: &Env) -> Size {

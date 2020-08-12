@@ -35,14 +35,7 @@ pub struct AppLauncher<T> {
     ext_event_host: ExtEventHost,
 }
 
-/// A description of a window to be instantiated.
-///
-/// This includes a function that can build the root widget, as well as other
-/// window properties such as the title.
-pub struct WindowDesc<T> {
-    pub(crate) root: Box<dyn Widget<T>>,
-    pub(crate) title: LabelText<T>,
-    pub(crate) menu: Option<MenuDesc<T>>,
+pub struct WindowConfig {
     pub(crate) size: Option<Size>,
     pub(crate) min_size: Option<Size>,
     pub(crate) position: Option<Point>,
@@ -50,6 +43,15 @@ pub struct WindowDesc<T> {
     pub(crate) show_titlebar: bool,
     pub(crate) maximized: bool,
     pub(crate) minimized: bool,
+}
+
+/// A description of a window to be instantiated.
+///
+/// This includes a function that can build the root widget, as well as other
+/// window properties such as the title.
+pub struct WindowDesc<T> {
+    pub(crate) pending: PendingWindow<T>,
+    pub(crate) config: WindowConfig,
     /// The `WindowId` that will be assigned to this window.
     ///
     /// This can be used to track a window from when it is launched and when
@@ -63,9 +65,45 @@ pub struct PendingWindow<T>{
     pub(crate) menu: Option<MenuDesc<T>>,
 }
 
-impl<T> PendingWindow<T> {
-    pub fn new(root: Box<dyn Widget<T>>, title: LabelText<T>, menu: Option<MenuDesc<T>>) -> Self {
+impl<T: Data> PendingWindow<T> {
+    pub fn new_complete(root: Box<dyn Widget<T>>, title: LabelText<T>, menu: Option<MenuDesc<T>>) -> Self {
         PendingWindow { root, title, menu }
+    }
+
+    pub fn new_from_boxed(root: Box<dyn Widget<T>>) -> PendingWindow<T> {
+        PendingWindow {
+            root,
+            title: LocalizedString::new("app-name").into(),
+            menu: MenuDesc::platform_default()
+        }
+    }
+
+    pub fn new<W, F>(root: F) -> PendingWindow<T>
+        where
+            W: Widget<T> + 'static,
+            F: FnOnce() -> W + 'static{
+        PendingWindow {
+            root: root().boxed(),
+            title: LocalizedString::new("app-name").into(),
+            menu: MenuDesc::platform_default()
+        }
+    }
+
+    /// Set the title for this window. This is a [`LabelText`]; it can be either
+    /// a `String`, a [`LocalizedString`], or a closure that computes a string;
+    /// it will be kept up to date as the application's state changes.
+    ///
+    /// [`LabelText`]: widget/enum.LocalizedString.html
+    /// [`LocalizedString`]: struct.LocalizedString.html
+    pub fn title(mut self, title: impl Into<LabelText<T>>) -> Self {
+        self.title = title.into();
+        self
+    }
+
+    /// Set the menu for this window.
+    pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
+        self.menu = Some(menu);
+        self
     }
 }
 
@@ -159,66 +197,17 @@ impl<T: Data> AppLauncher<T> {
     }
 }
 
-impl<T: Data> WindowDesc<T> {
-    /// Create a new `WindowDesc`, taking a function that will generate the root
-    /// [`Widget`] for this window.
-    ///
-    /// It is possible that a `WindowDesc` can be reused to launch multiple windows.
-    ///
-    /// [`Widget`]: trait.Widget.html
-    pub fn new<W, F>(root: F) -> WindowDesc<T>
-    where
-        W: Widget<T> + 'static,
-        F: FnOnce() -> W + 'static,
-    {
-        // wrap this closure in another closure that boxes the created widget.
-        // this just makes our API slightly cleaner; callers don't need to explicitly box.
-        WindowDesc {
-            root: root().boxed(),
-            title: LocalizedString::new("app-name").into(),
+impl WindowConfig{
+    pub fn new () -> WindowConfig{
+        WindowConfig{
             size: None,
             min_size: None,
             position: None,
-            menu: MenuDesc::platform_default(),
             resizable: true,
             show_titlebar: true,
             maximized: false,
             minimized: false,
-            id: WindowId::next(),
         }
-    }
-
-    pub fn map_widget<F: FnOnce(Box<dyn Widget<T>>)->Box<dyn Widget<U>>, U: Data>(mut self, f: F)-> WindowDesc<U>{
-        WindowDesc{
-            root: f(self.root),
-            title: LocalizedString::new("app-name").into(),
-            size: self.size,
-            min_size: self.min_size,
-            position: self.position,
-            menu: MenuDesc::platform_default(),
-            resizable: self.resizable,
-            show_titlebar: self.show_titlebar,
-            maximized: self.maximized,
-            minimized: self.minimized,
-            id: self.id,
-        }
-    }
-
-    /// Set the title for this window. This is a [`LabelText`]; it can be either
-    /// a `String`, a [`LocalizedString`], or a closure that computes a string;
-    /// it will be kept up to date as the application's state changes.
-    ///
-    /// [`LabelText`]: widget/enum.LocalizedString.html
-    /// [`LocalizedString`]: struct.LocalizedString.html
-    pub fn title(mut self, title: impl Into<LabelText<T>>) -> Self {
-        self.title = title.into();
-        self
-    }
-
-    /// Set the menu for this window.
-    pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
-        self.menu = Some(menu);
-        self
     }
 
     /// Set the window's initial drawing area size in [display points].
@@ -291,25 +280,10 @@ impl<T: Data> WindowDesc<T> {
         self
     }
 
-    /// Attempt to create a platform window from this `WindowDesc`.
-    pub(crate) fn build_native(
-        mut self,
-        state: &mut AppState<T>,
-    ) -> Result<WindowHandle, PlatformError> {
-        let data = state.data();
-        let env = state.env();
-        self.title.resolve(&data, &env);
-
-        let platform_menu = self.menu.as_mut().map(|m| m.build_window_menu(&data, &env));
-
-        let handler = DruidHandler::new_shared(state.clone(), self.id);
-
-        let mut builder = WindowBuilder::new(state.app());
-
+    pub fn apply_to_builder(&self, builder: &mut WindowBuilder){
         builder.resizable(self.resizable);
         builder.show_titlebar(self.show_titlebar);
 
-        builder.set_handler(Box::new(handler));
         if let Some(size) = self.size {
             builder.set_size(size);
         }
@@ -328,17 +302,125 @@ impl<T: Data> WindowDesc<T> {
         if self.minimized {
             builder.minimized();
         }
-
-        builder.set_title(self.title.display_text());
-        if let Some(menu) = platform_menu {
-            builder.set_menu(menu);
-        }
-
-        let root = self.root;
-        let mut pending = PendingWindow::new(root, self.title, self.menu);
-
-        state.add_window(self.id, pending);
-
-        builder.build()
     }
+}
+
+impl<T: Data> WindowDesc<T> {
+    /// Create a new `WindowDesc`, taking a function that will generate the root
+    /// [`Widget`] for this window.
+    ///
+    /// It is possible that a `WindowDesc` can be reused to launch multiple windows.
+    ///
+    /// [`Widget`]: trait.Widget.html
+    pub fn new<W, F>(root: F) -> WindowDesc<T>
+    where
+        W: Widget<T> + 'static,
+        F: FnOnce() -> W + 'static,
+    {
+        // wrap this closure in another closure that boxes the created widget.
+        // this just makes our API slightly cleaner; callers don't need to explicitly box.
+        WindowDesc {
+            pending: PendingWindow::new(root),
+            config: WindowConfig::new(),
+            id: WindowId::next(),
+        }
+    }
+
+    /// Set the title for this window. This is a [`LabelText`]; it can be either
+    /// a `String`, a [`LocalizedString`], or a closure that computes a string;
+    /// it will be kept up to date as the application's state changes.
+    ///
+    /// [`LabelText`]: widget/enum.LocalizedString.html
+    /// [`LocalizedString`]: struct.LocalizedString.html
+    pub fn title(mut self, title: impl Into<LabelText<T>>) -> Self {
+        self.pending = self.pending.title(title);
+        self
+    }
+
+    /// Set the menu for this window.
+    pub fn menu(mut self, menu: MenuDesc<T>) -> Self {
+        self.pending = self.pending.menu(menu);
+        self
+    }
+
+    /// Set the window's initial drawing area size in [display points].
+    ///
+    /// You can pass in a tuple `(width, height)` or a [`Size`],
+    /// e.g. to create a window with a drawing area 1000dp wide and 500dp high:
+    ///
+    /// ```ignore
+    /// window.window_size((1000.0, 500.0));
+    /// ```
+    ///
+    /// The actual window size in pixels will depend on the platform DPI settings.
+    ///
+    /// This should be considered a request to the platform to set the size of the window.
+    /// The platform might increase the size a tiny bit due to DPI.
+    ///
+    /// [`Size`]: struct.Size.html
+    /// [display points]: struct.Scale.html
+    pub fn window_size(mut self, size: impl Into<Size>) -> Self {
+        self.config.size = Some(size.into());
+        self
+    }
+
+    /// Set the window's minimum drawing area size in [display points].
+    ///
+    /// The actual minimum window size in pixels will depend on the platform DPI settings.
+    ///
+    /// This should be considered a request to the platform to set the minimum size of the window.
+    /// The platform might increase the size a tiny bit due to DPI.
+    ///
+    /// To set the window's initial drawing area size use [`window_size`].
+    ///
+    /// [`window_size`]: #method.window_size
+    /// [display points]: struct.Scale.html
+    pub fn with_min_size(mut self, size: impl Into<Size>) -> Self {
+        self.config.min_size = Some(size.into());
+        self
+    }
+
+    /// Set whether the window should be resizable.
+    pub fn resizable(mut self, resizable: bool) -> Self {
+        self.config.resizable = resizable;
+        self
+    }
+
+    /// Set whether the window should have a titlebar and decorations.
+    pub fn show_titlebar(mut self, show_titlebar: bool) -> Self {
+        self.config.show_titlebar = show_titlebar;
+        self
+    }
+
+    /// Sets the initial window position in virtual screen coordinates.
+    /// [`position`] Position in pixels.
+    ///
+    /// [`position`]: struct.Point.html
+    pub fn set_position(mut self, position: Point) -> Self {
+        self.config.position = Some(position);
+        self
+    }
+
+    /// Creates the window maximized.
+    pub fn maximized(mut self) -> Self {
+        self.config.maximized = true;
+        self
+    }
+
+    /// Creates the window minimized.
+    pub fn minimized(mut self) -> Self {
+        self.config.minimized = true;
+        self
+    }
+
+    /// Attempt to create a platform window from this `WindowDesc`.
+    pub(crate) fn build_native(
+        mut self,
+        state: &mut AppState<T>,
+    ) -> Result<WindowHandle, PlatformError> {
+        let config = self.config;
+        let mut pending = self.pending;
+        state.build_native_window(self.id, pending, config)
+    }
+
 }
