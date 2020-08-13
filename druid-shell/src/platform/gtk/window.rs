@@ -40,7 +40,7 @@ use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyState, KeyEvent, Modifiers};
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::scale::{Scale, Scalable, ScaledArea};
-use crate::window::{IdleToken, Text, TimerToken, WinHandler};
+use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
 
 use super::application::Application;
 use super::dialog;
@@ -158,6 +158,10 @@ impl WindowBuilder {
 
     pub fn set_position(&mut self, _position: Point) {
         log::warn!("WindowBuilder::set_position is currently unimplemented for gtk.");
+    }
+
+    pub fn set_level(&self, _level:WindowLevel) {
+        log::warn!("WindowBuilder::set_level is currently unimplemented for gtk.");
     }
 
     pub fn maximized(&self) {

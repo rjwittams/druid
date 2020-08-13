@@ -22,6 +22,7 @@ use druid::{
     WindowDesc, WindowId,
 };
 use instant::{Duration, Instant};
+use druid_shell::WindowLevel;
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -137,6 +138,7 @@ impl<T, W: Widget<T>> Controller<T, W> for TooltipController {
                             WindowConfig::default()
                                 .show_titlebar(false)
                                 .window_size(Size::new(100.0, 23.0))
+                                .set_level(WindowLevel::Tooltip)
                                 .set_position(
                                     ctx.window().get_position()
                                         + window_pos.to_vec2()
@@ -271,7 +273,9 @@ fn build_root_widget() -> impl Widget<HelloState> {
                 WindowConfig::default()
                     .show_titlebar(false)
                     .window_size(Size::new(100., 100.))
-                    .set_position(Point::new(1000.0, 500.0)),
+                    .set_position(Point::new(1000.0, 500.0))
+                    .set_level(WindowLevel::AppWindow)
+                ,
                 true,
                 col,
                 data.clone(),

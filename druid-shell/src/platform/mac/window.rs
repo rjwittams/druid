@@ -53,7 +53,7 @@ use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
 use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::scale::Scale;
-use crate::window::{IdleToken, Text, TimerToken, WinHandler};
+use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
 use crate::Error;
 use super::screen;
 
@@ -63,6 +63,9 @@ const NSWindowDidBecomeKeyNotification: &str = "NSWindowDidBecomeKeyNotification
 #[allow( dead_code)]
 #[allow(non_upper_case_globals)]
 mod levels{
+    use crate::window::WindowLevel;
+
+    // These are the levels that AppKit seems to have.
     pub const NSModalPanelLevel: i32 = 24;
     pub const NSNormalWindowLevel:i32 = 0;
     pub const NSFloatingWindowLevel: i32 = 3;
@@ -72,7 +75,21 @@ mod levels{
     pub const NSStatusWindowLevel: i32 = 25;
     pub const NSPopUpMenuWindowLevel: i32 = 101;
     pub const NSScreenSaverWindowLevel: i32  = 1000;
+
+
+
+    pub fn from_window_level(window_level: WindowLevel) -> i32{
+        use WindowLevel::*;
+        match window_level{
+            AppWindow => NSNormalWindowLevel,
+            Tooltip => NSFloatingWindowLevel,
+            DropDown => NSFloatingWindowLevel,
+            Modal => NSModalPanelWindowLevel
+        }
+    }
 }
+
+
 
 #[derive(Clone)]
 pub(crate) struct WindowHandle {
@@ -99,11 +116,12 @@ pub(crate) struct WindowBuilder {
     size: Size,
     min_size: Option<Size>,
     position: Option<Point>,
+    level: Option<WindowLevel>,
     maximized: bool,
     minimized: bool,
     resizable: bool,
     show_titlebar: bool,
-    borderless: bool
+    borderless: bool // This may never be needed
 }
 
 #[derive(Clone)]
@@ -139,6 +157,7 @@ impl WindowBuilder {
             size: Size::new(500.0, 400.0),
             min_size: None,
             position: None,
+            level: None,
             maximized: false,
             minimized: false,
             resizable: true,
@@ -168,8 +187,12 @@ impl WindowBuilder {
     }
 
     pub fn show_titlebar(&mut self, show_titlebar: bool) {
-        // TODO: Use this in `self.build`
         self.show_titlebar = show_titlebar;
+    }
+
+    pub fn set_level(&mut self, level:WindowLevel) {
+        log::info!("Set level mac builder {:?}", level);
+        self.level = Some(level);
     }
 
     pub fn set_position(&mut self, position: Point) {
@@ -217,7 +240,8 @@ impl WindowBuilder {
                 NSSize::new(self.size.width, self.size.height),
             );
 
-            let window = NSWindow::alloc(nil).initWithContentRect_styleMask_backing_defer_(
+            let window_a: id = msg_send![WINDOW_CLASS.0, alloc];
+            let window = window_a.initWithContentRect_styleMask_backing_defer_(
                 rect,
                 style_mask,
                 NSBackingStoreBuffered,
@@ -258,6 +282,9 @@ impl WindowBuilder {
                 handle.minimize()
             }else if self.maximized {
                 handle.maximize()
+            }
+            if let Some(level) = self.level {
+                handle.set_level(level)
             }
 
             (*view_state).handler.connect(&handle.clone().into());
@@ -445,6 +472,23 @@ fn make_view(handler: Box<dyn WinHandler>) -> (id, Weak<Mutex<Vec<IdleKind>>>) {
 
         (view.autorelease(), queue_handle)
     }
+}
+
+struct WindowClass(*const Class);
+unsafe impl Sync for WindowClass {}
+
+lazy_static!{
+    static ref WINDOW_CLASS: WindowClass = unsafe {
+        let mut decl = ClassDecl::new("DruidWindow", class!(NSWindow)).expect("Window class defined");
+        decl.add_method(
+            sel!(canBecomeKeyWindow),
+            canBecomeKeyWindow as extern "C" fn(&Object, Sel)->BOOL,
+        );
+        extern "C" fn canBecomeKeyWindow(_this: &Object, _sel: Sel)->BOOL{
+            YES
+        }
+        WindowClass(decl.register())
+    };
 }
 
 extern "C" fn set_frame_size(this: &mut Object, _: Sel, size: NSSize) {
@@ -905,8 +949,6 @@ impl WindowHandle {
             new_frame.origin.x = position.x;
             new_frame.origin.y = screen_height - position.y - frame.size.height ; // Flip back
             let  () = msg_send![window, setFrame: new_frame display: YES];
-
-            let () = msg_send![window, setLevel: levels::NSModalPanelWindowLevel ]; // TODO Move to seperate property!
         }
     }
 
@@ -918,6 +960,16 @@ impl WindowHandle {
             let current_frame:NSRect = msg_send![ window , frame];
 
             Point::new(current_frame.origin.x, screen_height - current_frame.origin.y - current_frame.size.height )
+        }
+    }
+
+
+    pub fn set_level(&self, level: WindowLevel) {
+        unsafe {
+            log::info!("Setting level {:?}", level);
+            let level = levels::from_window_level(level);
+            let window: id = msg_send![*self.nsview.load(), window];
+            let () = msg_send![window, setLevel: level ];
         }
     }
 

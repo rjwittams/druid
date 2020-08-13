@@ -102,6 +102,10 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
                         widget_state: ctx.widget_state,
                     };
                     self.child.update(&mut update_ctx, &self.data, env); // Should env be copied around too?
+                }else{
+                    log::warn!("Received a sub window parent to host command that could not be unwrapped. \
+                    This could mean that the sub window you requested and the enclosing widget pod that you opened it from do not share a common data type. \
+                    Make sure you have a widget pod between your requesting widget and any lenses." )
                 }
                 ctx.set_handled();
             }

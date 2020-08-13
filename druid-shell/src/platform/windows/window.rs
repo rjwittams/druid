@@ -63,7 +63,7 @@ use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyState};
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::scale::{Scale, Scalable, ScaledArea};
-use crate::window::{IdleToken, Text, TimerToken, WinHandler};
+use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
 
 /// The platform target DPI.
 ///
@@ -1184,6 +1184,10 @@ impl WindowBuilder {
         self.position = position;
     }
 
+    pub fn set_level(&self, _level:WindowLevel) {
+        log::warn!("WindowBuilder::set_level  is currently unimplemented for Windows platforms.");
+    }
+
     /// Creates the window maximized.
     pub fn maximized(&mut self) {
         self.maximized = true;
@@ -1587,6 +1591,10 @@ impl WindowHandle {
                 );
             }
         }
+    }
+
+    pub fn set_level(&self, _level:WindowLevel) {
+        warn!("Window level unimplemented for Windows!");
     }
 
     // Gets the position of the window in virtual screen coordinates

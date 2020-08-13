@@ -16,7 +16,7 @@
 
 use crate::ext_event::{ExtEventHost, ExtEventSink};
 use crate::kurbo::{Point, Size};
-use crate::shell::{Application, Error as PlatformError, WindowBuilder, WindowHandle};
+use crate::shell::{Application, Error as PlatformError, WindowBuilder, WindowHandle, WindowLevel};
 use crate::widget::LabelText;
 use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
@@ -41,6 +41,7 @@ pub struct WindowConfig {
     pub(crate) show_titlebar: Option<bool>,
     pub(crate) maximized: Option<bool>,
     pub(crate) minimized: Option<bool>,
+    pub(crate) level: Option<WindowLevel>
 }
 
 /// A description of a window to be instantiated.
@@ -202,6 +203,7 @@ impl Default for WindowConfig {
             show_titlebar: None,
             maximized: None,
             minimized: None,
+            level: None
         }
     }
 }
@@ -265,6 +267,11 @@ impl WindowConfig {
         self
     }
 
+    pub fn set_level(mut self, level: WindowLevel) -> Self {
+        self.level = Some(level);
+        self
+    }
+
     /// Creates the window maximized.
     pub fn maximized(mut self) -> Self {
         self.maximized = Some(true);
@@ -304,6 +311,11 @@ impl WindowConfig {
         if let Some(true) = self.minimized {
             builder.minimized();
         }
+
+        if let Some(level) = self.level {
+            log::info!("Set level on builder{:?}", level);
+            builder.set_level(level)
+        }
     }
 
     pub fn apply_to_handle(&self, win_handle: &mut WindowHandle) {
@@ -332,6 +344,10 @@ impl WindowConfig {
 
         if let Some(true) = self.minimized {
             win_handle.minimize();
+        }
+
+        if let Some(level) = self.level {
+            win_handle.set_level(level)
         }
     }
 }

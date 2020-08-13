@@ -130,6 +130,10 @@ impl WindowBuilder {
         log::warn!("WindowBuilder::set_position is currently unimplemented for X11 platforms.");
     }
 
+    pub fn set_level(&self, _level:WindowLevel) {
+        log::warn!("WindowBuilder::set_level  is currently unimplemented for X11 platforms.");
+    }
+
     pub fn maximized(&self) {
         log::warn!("WindowBuilder::maximized is currently unimplemented for X11 platforms.");
     }
@@ -1370,6 +1374,10 @@ impl WindowHandle {
     pub fn get_position(&self) -> Point {
         log::warn!("WindowHandle::get_position is currently unimplemented for X11 platforms.");
         Point::new(0.0, 0.0)
+    }
+
+    pub fn set_level(&self, _level:WindowLevel) {
+        log::warn!("WindowHandle::set_level  is currently unimplemented for X11 platforms.");
     }
 
     pub fn set_size(&self, _size: Size) {

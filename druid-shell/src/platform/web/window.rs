@@ -40,7 +40,7 @@ use crate::scale::{Scale, ScaledArea};
 
 use crate::keyboard::{KbKey, KeyState, Modifiers};
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
-use crate::window::{IdleToken, Text, TimerToken, WinHandler};
+use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
 
 // This is a macro instead of a function since KeyboardEvent and MouseEvent has identical functions
 // to query modifier key states.
@@ -349,6 +349,10 @@ impl WindowBuilder {
         // Ignored
     }
 
+    pub fn set_level(&self, _level:WindowLevel) {
+        // ignored
+    }
+
     pub fn maximized(&self) {
         // Ignored
     }
@@ -444,6 +448,10 @@ impl WindowHandle {
 
     pub fn set_position(&self, _position: Point) {
         log::warn!("WindowHandle::set_position unimplemented for web");
+    }
+
+    pub fn set_level(&self, _level:WindowLevel) {
+        log::warn!("WindowBuilder::set_level  is currently unimplemented for web.");
     }
 
     pub fn get_position(&self) -> Point {
