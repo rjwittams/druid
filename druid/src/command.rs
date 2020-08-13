@@ -162,7 +162,8 @@ pub mod sys {
     /// will automatically target the window containing the widget.
     pub const SHOW_WINDOW: Selector = Selector::new("druid-builtin.show-window");
 
-    pub const CONFIGURE_WINDOW: Selector<WindowConfig> = Selector::new("druid-builtin.configure-window");
+    pub const CONFIGURE_WINDOW: Selector<WindowConfig> =
+        Selector::new("druid-builtin.configure-window");
 
     /// Display a context (right-click) menu. The payload must be the [`ContextMenu`]
     /// object to be displayed.

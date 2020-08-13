@@ -16,7 +16,7 @@ pub struct SubWindowRequirement {
     pub(crate) host_id: Option<WidgetId>, // Present if updates should be sent from the pod to the sub window.
     pub(crate) sub_window_host: Box<dyn Widget<()>>,
     pub(crate) window_config: WindowConfig,
-    pub window_id: WindowId
+    pub window_id: WindowId,
 }
 
 struct UnitLens<T> {
@@ -40,7 +40,6 @@ impl<T> Lens<T, ()> for UnitLens<T> {
     }
 }
 
-
 impl SubWindowRequirement {
     pub fn new<U: Data, W: Widget<U> + 'static>(
         parent_id: WidgetId,
@@ -50,12 +49,12 @@ impl SubWindowRequirement {
         data: U,
     ) -> Self {
         let host_id = WidgetId::next();
-        let sub_window_host = SubWindowHost::new(host_id, parent_id,  sync, data, widget).boxed();
+        let sub_window_host = SubWindowHost::new(host_id, parent_id, sync, data, widget).boxed();
         SubWindowRequirement {
-            host_id: if sync { Some(host_id) } else { None},
+            host_id: if sync { Some(host_id) } else { None },
             sub_window_host,
             window_config,
-            window_id: WindowId::next()
+            window_id: WindowId::next(),
         }
     }
 

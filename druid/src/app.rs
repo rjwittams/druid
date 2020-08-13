@@ -278,11 +278,11 @@ impl WindowConfig {
     }
 
     pub fn apply_to_builder(&self, builder: &mut WindowBuilder) {
-        if let Some(resizable) = self.resizable{
+        if let Some(resizable) = self.resizable {
             builder.resizable(resizable);
         }
 
-        if let Some(show_titlebar ) = self.show_titlebar {
+        if let Some(show_titlebar) = self.show_titlebar {
             builder.show_titlebar(show_titlebar);
         }
 
@@ -306,20 +306,20 @@ impl WindowConfig {
         }
     }
 
-    pub fn apply_to_handle(&self, win_handle: &mut WindowHandle){
-        if let Some(resizable) = self.resizable{
+    pub fn apply_to_handle(&self, win_handle: &mut WindowHandle) {
+        if let Some(resizable) = self.resizable {
             win_handle.resizable(resizable);
         }
 
-        if let Some(show_titlebar ) = self.show_titlebar {
+        if let Some(show_titlebar) = self.show_titlebar {
             win_handle.show_titlebar(show_titlebar);
         }
 
         if let Some(size) = self.size {
             win_handle.set_size(size);
         }
-        if let Some(min_size) = self.min_size {
-           // win_handle.set_min_size(min_size);
+        if let Some(_min_size) = self.min_size {
+            // win_handle.set_min_size(min_size);
         }
 
         if let Some(position) = self.position {
