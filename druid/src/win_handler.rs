@@ -275,6 +275,7 @@ impl<T: Data> Inner<T> {
     /// window handle; the platform should close the window, and then call
     /// our handlers `destroy()` method, at which point we can do our cleanup.
     fn request_close_window(&mut self, window_id: WindowId) {
+        log::info!("Closing window {:?}",  window_id);
         if let Some(win) = self.windows.get_mut(window_id) {
             win.handle.close();
         }
@@ -290,6 +291,12 @@ impl<T: Data> Inner<T> {
     fn show_window(&mut self, id: WindowId) {
         if let Some(win) = self.windows.get_mut(id) {
             win.handle.bring_to_front_and_focus();
+        }
+    }
+
+    fn configure_window(&mut self, config: &WindowConfig, id: WindowId){
+        if let Some(win) = self.windows.get_mut(id) {
+            config.apply_to_handle(&mut win.handle);
         }
     }
 
@@ -559,6 +566,7 @@ impl<T: Data> AppState<T> {
             T::Window(id) if cmd.is(sys_cmd::SHOW_OPEN_PANEL) => self.show_open_panel(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::SHOW_SAVE_PANEL) => self.show_save_panel(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::CLOSE_WINDOW) => self.request_close_window(id),
+            T::Window(id) if cmd.is(sys_cmd::CONFIGURE_WINDOW)=> self.configure_window(cmd, id),
             T::Window(id) if cmd.is(sys_cmd::SHOW_WINDOW) => self.show_window(id),
             T::Window(id) if cmd.is(sys_cmd::PASTE) => self.do_paste(id),
             _ if cmd.is(sys_cmd::CLOSE_WINDOW) => {
@@ -651,6 +659,12 @@ impl<T: Data> AppState<T> {
 
     fn show_window(&mut self, id: WindowId) {
         self.inner.borrow_mut().show_window(id);
+    }
+
+    fn configure_window(&mut self, cmd: Command, id: WindowId) {
+        if let Some(config) = cmd.get(sys_cmd::CONFIGURE_WINDOW) {
+            self.inner.borrow_mut().configure_window(config, id);
+        }
     }
 
     fn do_paste(&mut self, window_id: WindowId) {

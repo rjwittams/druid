@@ -37,10 +37,10 @@ pub struct WindowConfig {
     pub(crate) size: Option<Size>,
     pub(crate) min_size: Option<Size>,
     pub(crate) position: Option<Point>,
-    pub(crate) resizable: bool,
-    pub(crate) show_titlebar: bool,
-    pub(crate) maximized: bool,
-    pub(crate) minimized: bool,
+    pub(crate) resizable: Option<bool>,
+    pub(crate) show_titlebar: Option<bool>,
+    pub(crate) maximized: Option<bool>,
+    pub(crate) minimized: Option<bool>,
 }
 
 /// A description of a window to be instantiated.
@@ -198,10 +198,10 @@ impl Default for WindowConfig {
             size: None,
             min_size: None,
             position: None,
-            resizable: true,
-            show_titlebar: true,
-            maximized: false,
-            minimized: false,
+            resizable: None,
+            show_titlebar: None,
+            maximized: None,
+            minimized: None,
         }
     }
 }
@@ -246,13 +246,13 @@ impl WindowConfig {
 
     /// Set whether the window should be resizable.
     pub fn resizable(mut self, resizable: bool) -> Self {
-        self.resizable = resizable;
+        self.resizable = Some(resizable);
         self
     }
 
     /// Set whether the window should have a titlebar and decorations.
     pub fn show_titlebar(mut self, show_titlebar: bool) -> Self {
-        self.show_titlebar = show_titlebar;
+        self.show_titlebar = Some(show_titlebar);
         self
     }
 
@@ -267,19 +267,24 @@ impl WindowConfig {
 
     /// Creates the window maximized.
     pub fn maximized(mut self) -> Self {
-        self.maximized = true;
+        self.maximized = Some(true);
         self
     }
 
     /// Creates the window minimized.
     pub fn minimized(mut self) -> Self {
-        self.minimized = true;
+        self.minimized = Some(true);
         self
     }
 
     pub fn apply_to_builder(&self, builder: &mut WindowBuilder) {
-        builder.resizable(self.resizable);
-        builder.show_titlebar(self.show_titlebar);
+        if let Some(resizable) = self.resizable{
+            builder.resizable(resizable);
+        }
+
+        if let Some(show_titlebar ) = self.show_titlebar {
+            builder.show_titlebar(show_titlebar);
+        }
 
         if let Some(size) = self.size {
             builder.set_size(size);
@@ -292,12 +297,41 @@ impl WindowConfig {
             builder.set_position(position);
         }
 
-        if self.maximized {
+        if let Some(true) = self.maximized {
             builder.maximized();
         }
 
-        if self.minimized {
+        if let Some(true) = self.minimized {
             builder.minimized();
+        }
+    }
+
+    pub fn apply_to_handle(&self, win_handle: &mut WindowHandle){
+        if let Some(resizable) = self.resizable{
+            win_handle.resizable(resizable);
+        }
+
+        if let Some(show_titlebar ) = self.show_titlebar {
+            win_handle.show_titlebar(show_titlebar);
+        }
+
+        if let Some(size) = self.size {
+            win_handle.set_size(size);
+        }
+        if let Some(min_size) = self.min_size {
+           // win_handle.set_min_size(min_size);
+        }
+
+        if let Some(position) = self.position {
+            win_handle.set_position(position);
+        }
+
+        if let Some(true) = self.maximized {
+            win_handle.maximize();
+        }
+
+        if let Some(true) = self.minimized {
+            win_handle.minimize();
         }
     }
 }
@@ -373,19 +407,19 @@ impl<T: Data> WindowDesc<T> {
     /// [`window_size`]: #method.window_size
     /// [display points]: struct.Scale.html
     pub fn with_min_size(mut self, size: impl Into<Size>) -> Self {
-        self.config.min_size = Some(size.into());
+        self.config = self.config.with_min_size(size);
         self
     }
 
     /// Set whether the window should be resizable.
     pub fn resizable(mut self, resizable: bool) -> Self {
-        self.config.resizable = resizable;
+        self.config = self.config.resizable(resizable);
         self
     }
 
     /// Set whether the window should have a titlebar and decorations.
     pub fn show_titlebar(mut self, show_titlebar: bool) -> Self {
-        self.config.show_titlebar = show_titlebar;
+        self.config = self.config.show_titlebar(show_titlebar);
         self
     }
 
@@ -394,19 +428,19 @@ impl<T: Data> WindowDesc<T> {
     ///
     /// [`position`]: struct.Point.html
     pub fn set_position(mut self, position: Point) -> Self {
-        self.config.position = Some(position);
+        self.config = self.config.set_position(position);
         self
     }
 
     /// Creates the window maximized.
     pub fn maximized(mut self) -> Self {
-        self.config.maximized = true;
+        self.config = self.config.maximized();
         self
     }
 
     /// Creates the window minimized.
     pub fn minimized(mut self) -> Self {
-        self.config.minimized = true;
+        self.config = self.config.minimized();
         self
     }
 

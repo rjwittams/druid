@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use druid::widget::{Align, Button, Flex, Label, SubWindowRequirement, TextBox};
-use druid::{
-    AppLauncher, Data, Env, Lens, LensExt, LocalizedString, Point, Size, Widget, WidgetExt,
-    WindowConfig, WindowDesc,
-};
+use druid::widget::{Align, Button, Flex, Label, SubWindowRequirement, TextBox, ControllerHost, Controller};
+use druid::{AppLauncher, Data, Env, Lens, LensExt, LocalizedString, Point, Size, Widget, WidgetExt, WindowConfig, WindowDesc, EventCtx, Event, WindowId, TimerToken, LifeCycle, LifeCycleCtx, MouseButtons};
+use instant::{Duration, Instant};
+use druid::commands::{CLOSE_WINDOW, CONFIGURE_WINDOW};
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -54,11 +53,152 @@ pub fn main() {
         .expect("Failed to launch application");
 }
 
+enum TooltipState {
+    Showing(WindowId),
+    Waiting{last_move: Instant, timer_expire: Instant, token: TimerToken, window_pos: Point},
+    Fresh
+}
+
+struct TooltipController{
+    tip: String,
+    state: TooltipState
+}
+
+impl TooltipController {
+    pub fn new(tip: impl Into<String>) -> Self {
+        TooltipController { tip: tip.into(), state: TooltipState::Fresh}
+    }
+}
+
+impl <T, W: Widget<T>> Controller<T, W> for TooltipController{
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+        let wait_duration = Duration::from_millis(500);
+        let resched_dur = Duration::from_millis(50);
+        let cursor_size = Size::new(15., 15.);
+        let now = Instant::now();
+        let new_state = match  &self.state {
+            TooltipState::Fresh => {
+                match event {
+                    Event::MouseMove(me) if ctx.is_hot() => {
+                        Some(TooltipState::Waiting { last_move: now, timer_expire: now + wait_duration, token: ctx.request_timer(wait_duration) , window_pos:  me.window_pos})
+                    },
+                    _ => None
+                }
+            }
+            TooltipState::Waiting { last_move, timer_expire, token, window_pos} => {
+                match event {
+                    Event::MouseMove(me) if ctx.is_hot() => {
+                        let (cur_token, cur_expire) = if *timer_expire - now <  resched_dur {
+                            (ctx.request_timer(wait_duration), now + wait_duration)
+                        } else {
+                            (*token, *timer_expire)
+                        };
+                        Some(TooltipState::Waiting { last_move: now, timer_expire: cur_expire, token: cur_token, window_pos: me.window_pos})
+                    },
+                    Event::Timer(tok) if tok == token => {
+                        let deadline = *last_move + wait_duration;
+                        ctx.set_handled();
+                        if deadline > now {
+                            let wait_for = deadline - now;
+                            log::info!("Waiting another {:?}", wait_for );
+                            Some(TooltipState::Waiting { last_move: *last_move, timer_expire: deadline, token: ctx.request_timer(wait_for) , window_pos: *window_pos})
+                        }else{
+
+                            let req = SubWindowRequirement::new(
+                                ctx.widget_id(),
+                                WindowConfig::default()
+                                    .show_titlebar(false)
+                                    .window_size(Size::new(100.0, 23.0))
+                                    .set_position(ctx.window().get_position() + window_pos.to_vec2() + cursor_size.to_vec2() ),
+                                false,
+                                Label::<()>::new(self.tip.clone()),
+                                (),
+                            );
+                            let win_id = req.window_id;
+                            ctx.new_sub_window(req);
+                            Some(TooltipState::Showing(win_id))
+                        }
+                    }
+                    _ => None
+                }
+            }
+            TooltipState::Showing(win_id) => {
+                match event {
+                    Event::MouseMove(me) if !ctx.is_hot()  => { // TODO another timer on leaving
+                        log::info!("Sending close window for {:?}", win_id);
+                        ctx.submit_command(CLOSE_WINDOW, *win_id);
+                        Some(TooltipState::Waiting { last_move: now, timer_expire: now + wait_duration, token: ctx.request_timer(wait_duration), window_pos: me.window_pos })
+                    },
+                    _ => None
+                }
+            }
+        };
+
+        if let Some(state) = new_state{
+            self.state = state;
+        }
+
+        if !ctx.is_handled(){
+            child.event(ctx, event, data, env);
+        }
+    }
+
+    fn lifecycle(&mut self, child: &mut W, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
+        match event {
+            LifeCycle::HotChanged(false)=> {
+                if let TooltipState::Showing(win_id) = self.state{
+                    ctx.submit_command(CLOSE_WINDOW, win_id);
+                }
+                self.state = TooltipState::Fresh;
+            },
+            _=>()
+        }
+        child.lifecycle(ctx, event, data, env)
+    }
+}
+
+struct DragWindowController{
+    init_pos: Option<Point>,
+    //dragging: bool
+}
+
+impl DragWindowController {
+    pub fn new() -> Self {
+        DragWindowController{init_pos : None}
+    }
+}
+
+impl <T, W: Widget<T>> Controller<T, W> for DragWindowController{
+    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+        match event {
+            Event::MouseDown(me) if me.buttons.has_left()=>{
+                ctx.set_active(true);
+                self.init_pos = Some(me.window_pos)
+            }
+            Event::MouseMove(me) if ctx.is_active() && me.buttons.has_left() => {
+                if let Some(init_pos) = self.init_pos {
+                    let within_window_change = me.window_pos.to_vec2() - init_pos.to_vec2();
+                    let old_pos = ctx.window().get_position();
+                    let new_pos = old_pos + within_window_change;
+                    log::info!("Drag {:?} ", ( init_pos, me.window_pos, within_window_change, old_pos, new_pos ));
+                    ctx.window().set_position(new_pos)
+                }
+            }
+            Event::MouseUp(me) if ctx.is_active() => {
+                self.init_pos = None;
+                ctx.set_active(false)
+            }
+            _ => ()
+        }
+        child.event(ctx, event, data, env)
+    }
+}
+
 fn build_root_widget() -> impl Widget<HelloState> {
     // a label that will determine its text based on the current app data.
-    let label = Label::new(|data: &HelloState, _env: &Env| {
+    let label = ControllerHost::new(Label::new(|data: &HelloState, _env: &Env| {
         format!("Hello {}! {} ", data.name, data.sub.my_stuff)
-    });
+    }), TooltipController::new("Tips! Are good") );
     // a textbox that modifies `name`.
     let textbox = TextBox::new()
         .with_placeholder("Who are we greeting?")
@@ -67,14 +207,17 @@ fn build_root_widget() -> impl Widget<HelloState> {
 
     let button = Button::new("Make sub window")
         .on_click(|ctx, data: &mut SubState, _env| {
+            let tb = TextBox::new().lens(SubState::my_stuff);
+            let drag_thing = Label::new("Drag me").controller(DragWindowController::new());
+            let col = Flex::column().with_child(drag_thing).with_child(tb);
             let req = SubWindowRequirement::new(
                 ctx.widget_id(),
                 WindowConfig::default()
-                    //.show_titlebar(false)
+                    .show_titlebar(false)
                     .window_size(Size::new(100., 100.))
                     .set_position(Point::new(1000.0, 500.0)),
-                false,
-                TextBox::new().lens(SubState::my_stuff),
+                true,
+                col,
                 data.clone(),
             );
 

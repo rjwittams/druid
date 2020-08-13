@@ -226,7 +226,7 @@ impl WindowBuilder {
 
             if let Some(min_size) = self.min_size {
                 let size = NSSize::new(min_size.width, min_size.height);
-                window.setContentMinSize_(size);
+                window.setContentMinSize_(size); // TODO put on window handle
             }
 
             window.cascadeTopLeftFromPoint_(NSPoint::new(20.0, 20.0));
@@ -903,10 +903,10 @@ impl WindowHandle {
 
             let mut new_frame = frame;
             new_frame.origin.x = position.x;
-            new_frame.origin.y = screen_height - position.y - frame.size.height*2. ; // Flip back
+            new_frame.origin.y = screen_height - position.y - frame.size.height ; // Flip back
             let  () = msg_send![window, setFrame: new_frame display: YES];
 
-            let () = msg_send![window, setLevel: levels::NSModalPanelWindowLevel ];
+            let () = msg_send![window, setLevel: levels::NSModalPanelWindowLevel ]; // TODO Move to seperate property!
         }
     }
 

@@ -16,6 +16,7 @@ pub struct SubWindowRequirement {
     pub(crate) host_id: Option<WidgetId>, // Present if updates should be sent from the pod to the sub window.
     pub(crate) sub_window_host: Box<dyn Widget<()>>,
     pub(crate) window_config: WindowConfig,
+    pub window_id: WindowId
 }
 
 struct UnitLens<T> {
@@ -54,6 +55,7 @@ impl SubWindowRequirement {
             host_id: if sync { Some(host_id) } else { None},
             sub_window_host,
             window_config,
+            window_id: WindowId::next()
         }
     }
 
@@ -63,7 +65,7 @@ impl SubWindowRequirement {
     ) -> Result<WindowHandle, Error> {
         let pending =
             PendingWindow::new_from_boxed(self.sub_window_host.lens(UnitLens::new()).boxed());
-        app_state.build_native_window(WindowId::next(), pending, self.window_config)
+        app_state.build_native_window(self.window_id, pending, self.window_config)
     }
 }
 

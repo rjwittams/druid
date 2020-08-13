@@ -130,7 +130,7 @@ pub mod sys {
 
     use super::Selector;
     use crate::widget::SubWindowRequirement;
-    use crate::{FileDialogOptions, FileInfo, SingleUse};
+    use crate::{FileDialogOptions, FileInfo, SingleUse, WindowConfig};
 
     /// Quit the running application. This command is handled by the druid library.
     pub const QUIT_APP: Selector = Selector::new("druid-builtin.quit-app");
@@ -161,6 +161,8 @@ pub mod sys {
     /// When calling `submit_command` on a `Widget`s context, passing `None` as target
     /// will automatically target the window containing the widget.
     pub const SHOW_WINDOW: Selector = Selector::new("druid-builtin.show-window");
+
+    pub const CONFIGURE_WINDOW: Selector<WindowConfig> = Selector::new("druid-builtin.configure-window");
 
     /// Display a context (right-click) menu. The payload must be the [`ContextMenu`]
     /// object to be displayed.
