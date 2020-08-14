@@ -271,9 +271,9 @@ impl Widget<()> for ScreenThing{
         let monitors = Screen::get_monitors();
         let all = monitors.iter().map(|x| x.virtual_rect()).fold(Rect::ZERO, |s, r| r.union(s));
 
-        let virt_size = all.size();
-
-        let trans = Affine::scale( f64::min( sz.width/ all.width() , sz.height/ all.height()  ),  );
+        let trans =
+            Affine::scale(f64::min( sz.width/ all.width() , sz.height/ all.height())) *
+                Affine::translate( all.origin().to_vec2() ).inverse();
 
         log::info!("{:?}", trans);
 
