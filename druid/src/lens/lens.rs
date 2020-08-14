@@ -506,3 +506,25 @@ where
         v
     }
 }
+
+#[derive(Debug, Copy, Clone)]
+pub struct UnitLens<T> {
+    phantom_t: PhantomData<T>,
+}
+
+impl<T> UnitLens<T> {
+    pub fn new() -> Self {
+        UnitLens {
+            phantom_t: Default::default(),
+        }
+    }
+}
+
+impl<T> Lens<T, ()> for UnitLens<T> {
+    fn with<V, F: FnOnce(&()) -> V>(&self, _data: &T, f: F) -> V {
+        f(&())
+    }
+    fn with_mut<V, F: FnOnce(&mut ()) -> V>(&self, _data: &mut T, f: F) -> V {
+        f(&mut ())
+    }
+}

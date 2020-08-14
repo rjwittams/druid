@@ -16,13 +16,10 @@ use druid::commands::{CLOSE_WINDOW, CONFIGURE_WINDOW};
 use druid::widget::{
     Align, Button, Controller, ControllerHost, Flex, Label, SubWindowRequirement, TextBox,
 };
-use druid::{
-    AppLauncher, Data, Env, Event, EventCtx, Lens, LensExt, LifeCycle, LifeCycleCtx,
-    LocalizedString, MouseButtons, Point, Size, TimerToken, Widget, WidgetExt, WindowConfig,
-    WindowDesc, WindowId,
-};
+use druid::{AppLauncher, Data, Env, Event, EventCtx, Lens, LensExt, LifeCycle, LifeCycleCtx, LocalizedString, MouseButtons, Point, Size, Color, TimerToken, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId, PaintCtx, BoxConstraints, LayoutCtx, UpdateCtx, Rect, Affine, RenderContext};
 use instant::{Duration, Instant};
-use druid_shell::WindowLevel;
+use druid_shell::{WindowLevel, Screen, Monitor};
+use druid::lens::UnitLens;
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -249,6 +246,46 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
     }
 }
 
+struct ScreenThing;
+
+impl Widget<()> for ScreenThing{
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (), env: &Env) {
+
+    }
+
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &(), env: &Env) {
+
+    }
+
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &(), data: &(), env: &Env) {
+
+    }
+
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(), env: &Env) -> Size {
+        return bc.constrain(Size::new(300.0, 200.0));
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &(), env: &Env) {
+        let sz = ctx.region().to_rect().size();
+
+        let monitors = Screen::get_monitors();
+        let all = monitors.iter().map(|x| x.virtual_rect()).fold(Rect::ZERO, |s, r| r.union(s));
+
+        let virt_size = all.size();
+
+        let trans = Affine::scale( f64::min( sz.width/ all.width() , sz.height/ all.height()  ),  );
+
+        log::info!("{:?}", trans);
+
+        ctx.with_save(|ctx|{
+            ctx.transform(trans);
+            for (i, mon) in monitors.iter().enumerate() {
+                ctx.stroke(mon.virtual_rect(), &Color::WHITE, 7.0);
+            }
+        });
+    }
+}
+
 fn build_root_widget() -> impl Widget<HelloState> {
     // a label that will determine its text based on the current app data.
     let label = ControllerHost::new(
@@ -289,6 +326,7 @@ fn build_root_widget() -> impl Widget<HelloState> {
     // arrange the two widgets vertically, with some padding
     let layout = Flex::column()
         .with_child(label)
+        .with_flex_child(ScreenThing.lens(UnitLens::new()), 1.)
         .with_spacer(VERTICAL_WIDGET_SPACING)
         .with_child(textbox)
         .with_child(button);

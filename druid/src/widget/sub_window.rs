@@ -9,6 +9,7 @@ use crate::{
 use druid_shell::Error;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use crate::lens::UnitLens;
 
 // We have to have no generics, as both ends would need to know them.
 // So we erase everything to ()
@@ -19,26 +20,7 @@ pub struct SubWindowRequirement {
     pub window_id: WindowId,
 }
 
-struct UnitLens<T> {
-    phantom_t: PhantomData<T>,
-}
 
-impl<T> UnitLens<T> {
-    pub fn new() -> Self {
-        UnitLens {
-            phantom_t: Default::default(),
-        }
-    }
-}
-
-impl<T> Lens<T, ()> for UnitLens<T> {
-    fn with<V, F: FnOnce(&()) -> V>(&self, _data: &T, f: F) -> V {
-        f(&())
-    }
-    fn with_mut<V, F: FnOnce(&mut ()) -> V>(&self, _data: &mut T, f: F) -> V {
-        f(&mut ())
-    }
-}
 
 impl SubWindowRequirement {
     pub fn new<U: Data, W: Widget<U> + 'static>(
