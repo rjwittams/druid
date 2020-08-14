@@ -607,21 +607,32 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_size(&self, _size: Size) {
-        log::warn!("WindowHandle::set_size is currently unimplemented for gtk.");
+    pub fn set_size(&self, size: Size) {
+        if let Some(state) = self.state.upgrade(){
+            state.window.resize(size.width as i32, size.height as i32)
+        }
     }
 
     pub fn get_size(&self) -> Size {
-        log::warn!("WindowHandle::get_size is currently unimplemented for gtk.");
-        Size::new(0.0, 0.0)
+        if let Some(state) = self.state.upgrade(){
+            let (x, y) = state.window.get_size();
+            Size::new(x as f64, y as f64)
+        } else{
+            log::warn!("Could not get size for GTK window");
+            Size::new(0. , 0.)
+        }
     }
 
     pub fn maximize(&self) {
-        log::warn!("WindowHandle::maximize is currently unimplemented for gtk.");
+        if let Some(state) = self.state.upgrade(){
+            state.window.maximize();
+        }
     }
 
     pub fn minimize(&self) {
-        log::warn!("WindowHandle::minimize is currently unimplemented for gtk.");
+        if let Some(state) = self.state.upgrade(){
+            state.window.iconify();
+        }
     }
 
     pub fn handle_titlebar(&self, _val: bool) {

@@ -15,14 +15,29 @@
 //! GTK Monitors and Screen information.
 
 use crate::screen::Monitor;
-use crate::kurbo::Size;
+use kurbo::{Size, Rect, Point};
+use gdk::{Display};
+use gdk;
 
 pub(crate) fn get_display_size() -> Size {
-    log::warn!("Screen::get_display_size() is currently unimplemented for gtk.");
-    Size::new(0.0, 0.0)
+    get_monitors().iter().map(|x|x.virtual_rect() ).fold(Rect::ZERO, |a, b|a.union(b)).size()
+}
+
+fn translate_gdk_rectangle(r: gdk::Rectangle)->Rect{
+    Rect::from_origin_size( Point::new(r.x as f64, r.y as f64), Size::new ( r.width as f64, r.height as f64) )
+}
+
+fn translate_gdk_monitor(mon: gdk::Monitor)->Monitor{
+    let area = translate_gdk_rectangle( mon.get_geometry() );
+    Monitor::new(mon.is_primary(),
+                 area,
+                 mon.get_property_workarea().map(translate_gdk_rectangle).unwrap_or(area) )
 }
 
 pub(crate) fn get_monitors() -> Vec<Monitor> {
-    log::warn!("Screen::get_monitors() is currently unimplemented for gtk.");
-    Vec::<Monitor>::new()
+    gdk::DisplayManager::get().list_displays().iter().flat_map(|display: &Display|{
+        (0..display.get_n_monitors()).map(move |i| {
+            display.get_monitor(i).map(translate_gdk_monitor)
+        } ).flatten()
+    }).collect()
 }

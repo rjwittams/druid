@@ -16,10 +16,12 @@ use druid::commands::{CLOSE_WINDOW, CONFIGURE_WINDOW};
 use druid::widget::{
     Align, Button, Controller, ControllerHost, Flex, Label, SubWindowRequirement, TextBox,
 };
-use druid::{AppLauncher, Data, Env, Event, EventCtx, Lens, LensExt, LifeCycle, LifeCycleCtx, LocalizedString, MouseButtons, Point, Size, Color, TimerToken, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId, PaintCtx, BoxConstraints, LayoutCtx, UpdateCtx, Rect, Affine, RenderContext};
+use druid::{theme, AppLauncher, Data, Env, Event, EventCtx, Lens, LensExt, LifeCycle, LifeCycleCtx, LocalizedString, MouseButtons, Point, Size, Color, TimerToken, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId, PaintCtx, BoxConstraints, LayoutCtx, UpdateCtx, Rect, Affine, RenderContext, Vec2};
 use instant::{Duration, Instant};
 use druid_shell::{WindowLevel, Screen, Monitor};
 use druid::lens::UnitLens;
+use druid_shell::piet::{Text, FontBuilder};
+use piet_common::{TextLayoutBuilder, TextLayout};
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -262,7 +264,7 @@ impl Widget<()> for ScreenThing{
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(), env: &Env) -> Size {
-        return bc.constrain(Size::new(300.0, 200.0));
+        return bc.constrain(Size::new(800.0, 600.0));
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &(), env: &Env) {
@@ -270,19 +272,23 @@ impl Widget<()> for ScreenThing{
 
         let monitors = Screen::get_monitors();
         let all = monitors.iter().map(|x| x.virtual_rect()).fold(Rect::ZERO, |s, r| r.union(s));
+        if all.width() > 0. && all.height() > 0. {
+            let trans =
+                Affine::scale(f64::min(sz.width / all.width(), sz.height / all.height())) *
+                    Affine::translate(all.origin().to_vec2()).inverse();
+            let font = ctx.text().new_font_by_name(env.get(theme::FONT_NAME), env.get(theme::TEXT_SIZE_NORMAL)).build().unwrap();
 
-        let trans =
-            Affine::scale(f64::min( sz.width/ all.width() , sz.height/ all.height())) *
-                Affine::translate( all.origin().to_vec2() ).inverse();
-
-        log::info!("{:?}", trans);
-
-        ctx.with_save(|ctx|{
-            ctx.transform(trans);
             for (i, mon) in monitors.iter().enumerate() {
-                ctx.stroke(mon.virtual_rect(), &Color::WHITE, 7.0);
+                let vr = mon.virtual_rect();
+                let tr = trans.transform_rect_bbox(vr);
+                ctx.stroke(tr, &Color::WHITE, 1.0);
+
+                let tl = ctx.text().new_text_layout(&font, &format!("{}:{}x{}@{},{}", i, vr.width(), vr.height(), vr.x0, vr.y0), tr.width() - 5.).build().unwrap();
+
+                ctx.draw_text( &tl,  tr.center() - Vec2::new( tl.width() / 2. , tl.line_metric(0).unwrap().height / 2. ),  &Color::WHITE);
             }
-        });
+
+        }
     }
 }
 
@@ -326,7 +332,7 @@ fn build_root_widget() -> impl Widget<HelloState> {
     // arrange the two widgets vertically, with some padding
     let layout = Flex::column()
         .with_child(label)
-        .with_flex_child(ScreenThing.lens(UnitLens::new()), 1.)
+        .with_flex_child(ScreenThing.lens(UnitLens::new()).padding(5.), 1.)
         .with_spacer(VERTICAL_WIDGET_SPACING)
         .with_child(textbox)
         .with_child(button);
