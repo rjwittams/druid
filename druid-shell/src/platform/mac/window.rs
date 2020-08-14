@@ -182,10 +182,6 @@ impl WindowBuilder {
         self.resizable = resizable;
     }
 
-    pub fn borderless(&mut self, borderless: bool) {
-        self.borderless = borderless;
-    }
-
     pub fn show_titlebar(&mut self, show_titlebar: bool) {
         self.show_titlebar = show_titlebar;
     }

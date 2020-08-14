@@ -98,11 +98,11 @@ impl IdleToken {
 /// Levels in the window system - ie Z order for display purposes
 //
 #[derive(Copy, Clone, Debug)]
-pub enum WindowLevel{
+pub enum WindowLevel {
     AppWindow,
     Tooltip,
     DropDown, // Eg in a combo box or custom menu
-    Modal
+    Modal,
 }
 
 /// A handle to a platform window object.
@@ -298,8 +298,6 @@ impl WindowHandle {
     pub fn get_scale(&self) -> Result<Scale, Error> {
         self.0.get_scale().map_err(Into::into)
     }
-
-
 }
 
 /// A builder type for creating new windows.
@@ -367,7 +365,9 @@ impl WindowBuilder {
         self.0.set_position(position);
     }
 
-    pub fn set_level(&mut self, level:WindowLevel) { self.0.set_level(level); }
+    pub fn set_level(&mut self, level: WindowLevel) {
+        self.0.set_level(level);
+    }
 
     /// Set the window's initial title.
     pub fn set_title(&mut self, title: impl Into<String>) {

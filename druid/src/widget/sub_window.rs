@@ -1,15 +1,14 @@
 use crate::app::{PendingWindow, WindowConfig};
 use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
 use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
+use crate::lens::UnitLens;
 use crate::win_handler::AppState;
 use crate::{
-    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
     Point, Rect, Size, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowHandle, WindowId,
 };
 use druid_shell::Error;
-use std::marker::PhantomData;
 use std::ops::Deref;
-use crate::lens::UnitLens;
 
 // We have to have no generics, as both ends would need to know them.
 // So we erase everything to ()
@@ -19,8 +18,6 @@ pub struct SubWindowRequirement {
     pub(crate) window_config: WindowConfig,
     pub window_id: WindowId,
 }
-
-
 
 impl SubWindowRequirement {
     pub fn new<U: Data, W: Widget<U> + 'static>(
@@ -45,7 +42,7 @@ impl SubWindowRequirement {
         app_state: &mut AppState<T>,
     ) -> Result<WindowHandle, Error> {
         let pending =
-            PendingWindow::new_from_boxed(self.sub_window_host.lens(UnitLens::new()).boxed());
+            PendingWindow::new_from_boxed(self.sub_window_host.lens(UnitLens::default()).boxed());
         app_state.build_native_window(self.window_id, pending, self.window_config)
     }
 }
@@ -84,7 +81,7 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
                         widget_state: ctx.widget_state,
                     };
                     self.child.update(&mut update_ctx, &self.data, env); // Should env be copied around too?
-                }else{
+                } else {
                     log::warn!("Received a sub window parent to host command that could not be unwrapped. \
                     This could mean that the sub window you requested and the enclosing widget pod that you opened it from do not share a common data type. \
                     Make sure you have a widget pod between your requesting widget and any lenses." )

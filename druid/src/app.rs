@@ -41,7 +41,7 @@ pub struct WindowConfig {
     pub(crate) show_titlebar: Option<bool>,
     pub(crate) maximized: Option<bool>,
     pub(crate) minimized: Option<bool>,
-    pub(crate) level: Option<WindowLevel>
+    pub(crate) level: Option<WindowLevel>,
 }
 
 /// A description of a window to be instantiated.
@@ -203,7 +203,7 @@ impl Default for WindowConfig {
             show_titlebar: None,
             maximized: None,
             minimized: None,
-            level: None
+            level: None,
         }
     }
 }

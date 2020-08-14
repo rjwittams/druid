@@ -15,9 +15,15 @@
 //! Opening and closing windows and using window and context menus.
 
 use druid::widget::prelude::*;
-use druid::widget::{Align, BackgroundBrush, Button, Controller, ControllerHost, Flex, Label, Padding, TextBox};
+use druid::widget::{
+    Align, BackgroundBrush, Button, Controller, ControllerHost, Flex, Label, Padding, TextBox,
+};
 use druid::Target::Global;
-use druid::{commands as sys_cmds, AppDelegate, AppLauncher, Application, Color, Command, Lens, ContextMenu, Data, DelegateCtx, LocalizedString, MenuDesc, MenuItem, Selector, Target, WindowDesc, WindowId, WidgetExt};
+use druid::{
+    commands as sys_cmds, AppDelegate, AppLauncher, Application, Color, Command, ContextMenu, Data,
+    DelegateCtx, Lens, LocalizedString, MenuDesc, MenuItem, Selector, Target, WidgetExt,
+    WindowDesc, WindowId,
+};
 use log::info;
 
 const MENU_COUNT_ACTION: Selector<usize> = Selector::new("menu-count-action");
@@ -30,7 +36,7 @@ struct State {
     menu_count: usize,
     selected: usize,
     glow_hot: bool,
-    word: String
+    word: String,
 }
 
 pub fn main() {
@@ -71,8 +77,6 @@ fn ui_builder() -> impl Widget<State> {
     row.add_child(Padding::new(5.0, inc_button));
     row.add_child(Padding::new(5.0, dec_button));
     col.add_flex_child(Align::centered(row), 1.0);
-
-
 
     let mut row = Flex::row();
     row.add_child(Padding::new(5.0, new_button));

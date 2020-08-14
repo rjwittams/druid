@@ -19,8 +19,8 @@ use druid_shell::kurbo::{Line, Point, Rect, Size};
 use druid_shell::piet::{Color, RenderContext};
 
 use druid_shell::{
-    Application, Cursor, FileDialogOptions, FileSpec, HotKey, IdleToken, KbKey, KeyEvent, Menu,
-    MouseEvent, Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle,
+    Application, Cursor, FileDialogOptions, FileSpec, HotKey, KbKey, KeyEvent, Menu, MouseEvent,
+    Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle,
 };
 use piet_common::Piet;
 use std::time::Duration;
@@ -182,22 +182,22 @@ impl WinHandler for FloatingPanel {
         self.handle = handle.clone();
     }
 
-    fn paint(&mut self, piet: &mut Piet, invalid_rect: Rect) -> bool {
+    fn size(&mut self, size: Size) {
+        self.size = size;
+    }
+
+    fn paint(&mut self, piet: &mut Piet, _invalid_rect: Rect) -> bool {
         let rect = self.size.to_rect();
         piet.fill(rect, &Color::WHITE);
         piet.stroke(Line::new(rect.origin(), (rect.x1, rect.y1)), &FG_COLOR, 1.0);
         false
     }
 
+    fn mouse_down(&mut self, _event: &MouseEvent) {}
+
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
-
-    fn size(&mut self, size: Size) {
-        self.size = size;
-    }
-
-    fn mouse_down(&mut self, event: &MouseEvent) {}
 }
 
 fn main() {

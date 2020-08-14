@@ -512,8 +512,8 @@ pub struct UnitLens<T> {
     phantom_t: PhantomData<T>,
 }
 
-impl<T> UnitLens<T> {
-    pub fn new() -> Self {
+impl<T> Default for UnitLens<T> {
+    fn default() -> Self {
         UnitLens {
             phantom_t: Default::default(),
         }

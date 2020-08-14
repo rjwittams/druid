@@ -12,16 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use druid::commands::{CLOSE_WINDOW, CONFIGURE_WINDOW};
+use druid::commands::CLOSE_WINDOW;
+use druid::lens::UnitLens;
 use druid::widget::{
     Align, Button, Controller, ControllerHost, Flex, Label, SubWindowRequirement, TextBox,
 };
-use druid::{theme, AppLauncher, Data, Env, Event, EventCtx, Lens, LensExt, LifeCycle, LifeCycleCtx, LocalizedString, MouseButtons, Point, Size, Color, TimerToken, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId, PaintCtx, BoxConstraints, LayoutCtx, UpdateCtx, Rect, Affine, RenderContext, Vec2};
+use druid::{
+    theme, Affine, AppLauncher, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, Lens,
+    LensExt, LifeCycle, LifeCycleCtx, LocalizedString, PaintCtx, Point, Rect, RenderContext, Size,
+    TimerToken, UpdateCtx, Vec2, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId,
+};
+use druid_shell::piet::{FontBuilder, Text};
+use druid_shell::{Screen, WindowLevel};
 use instant::{Duration, Instant};
-use druid_shell::{WindowLevel, Screen, Monitor};
-use druid::lens::UnitLens;
-use druid_shell::piet::{Text, FontBuilder};
-use piet_common::{TextLayoutBuilder, TextLayout};
+use piet_common::{TextLayout, TextLayoutBuilder};
 
 const VERTICAL_WIDGET_SPACING: f64 = 20.0;
 const TEXT_BOX_WIDTH: f64 = 200.0;
@@ -238,7 +242,7 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
                     ctx.window().set_position(new_pos)
                 }
             }
-            Event::MouseUp(me) if ctx.is_active() => {
+            Event::MouseUp(_me) if ctx.is_active() => {
                 self.init_pos = None;
                 ctx.set_active(false)
             }
@@ -250,44 +254,62 @@ impl<T, W: Widget<T>> Controller<T, W> for DragWindowController {
 
 struct ScreenThing;
 
-impl Widget<()> for ScreenThing{
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut (), env: &Env) {
+impl Widget<()> for ScreenThing {
+    fn event(&mut self, _ctx: &mut EventCtx, _event: &Event, _data: &mut (), _env: &Env) {}
 
-    }
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &(), _env: &Env) {}
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &(), env: &Env) {
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &(), _data: &(), _env: &Env) {}
 
-    }
-
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &(), data: &(), env: &Env) {
-
-    }
-
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &(), env: &Env) -> Size {
+    fn layout(
+        &mut self,
+        _ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        _data: &(),
+        _env: &Env,
+    ) -> Size {
         return bc.constrain(Size::new(800.0, 600.0));
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &(), env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, _data: &(), env: &Env) {
         let sz = ctx.region().to_rect().size();
 
         let monitors = Screen::get_monitors();
-        let all = monitors.iter().map(|x| x.virtual_rect()).fold(Rect::ZERO, |s, r| r.union(s));
+        let all = monitors
+            .iter()
+            .map(|x| x.virtual_rect())
+            .fold(Rect::ZERO, |s, r| r.union(s));
         if all.width() > 0. && all.height() > 0. {
-            let trans =
-                Affine::scale(f64::min(sz.width / all.width(), sz.height / all.height())) *
-                    Affine::translate(all.origin().to_vec2()).inverse();
-            let font = ctx.text().new_font_by_name(env.get(theme::FONT_NAME), env.get(theme::TEXT_SIZE_NORMAL)).build().unwrap();
+            let trans = Affine::scale(f64::min(sz.width / all.width(), sz.height / all.height()))
+                * Affine::translate(all.origin().to_vec2()).inverse();
+            let font = ctx
+                .text()
+                .new_font_by_name(env.get(theme::FONT_NAME), env.get(theme::TEXT_SIZE_NORMAL))
+                .build()
+                .unwrap();
 
             for (i, mon) in monitors.iter().enumerate() {
                 let vr = mon.virtual_rect();
                 let tr = trans.transform_rect_bbox(vr);
                 ctx.stroke(tr, &Color::WHITE, 1.0);
 
-                let tl = ctx.text().new_text_layout(&font, &format!("{}:{}x{}@{},{}", i, vr.width(), vr.height(), vr.x0, vr.y0), tr.width() - 5.).build().unwrap();
+                let tl = ctx
+                    .text()
+                    .new_text_layout(
+                        &font,
+                        &format!("{}:{}x{}@{},{}", i, vr.width(), vr.height(), vr.x0, vr.y0),
+                        tr.width() - 5.,
+                    )
+                    .build()
+                    .unwrap();
 
-                ctx.draw_text( &tl,  tr.center() - Vec2::new( tl.width() / 2. , tl.line_metric(0).unwrap().height / 2. ),  &Color::WHITE);
+                ctx.draw_text(
+                    &tl,
+                    tr.center()
+                        - Vec2::new(tl.width() / 2., tl.line_metric(0).unwrap().height / 2.),
+                    &Color::WHITE,
+                );
             }
-
         }
     }
 }
@@ -317,8 +339,7 @@ fn build_root_widget() -> impl Widget<HelloState> {
                     .show_titlebar(false)
                     .window_size(Size::new(100., 100.))
                     .set_position(Point::new(1000.0, 500.0))
-                    .set_level(WindowLevel::AppWindow)
-                ,
+                    .set_level(WindowLevel::AppWindow),
                 true,
                 col,
                 data.clone(),
@@ -332,7 +353,7 @@ fn build_root_widget() -> impl Widget<HelloState> {
     // arrange the two widgets vertically, with some padding
     let layout = Flex::column()
         .with_child(label)
-        .with_flex_child(ScreenThing.lens(UnitLens::new()).padding(5.), 1.)
+        .with_flex_child(ScreenThing.lens(UnitLens::default()).padding(5.), 1.)
         .with_spacer(VERTICAL_WIDGET_SPACING)
         .with_child(textbox)
         .with_child(button);

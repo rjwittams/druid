@@ -65,10 +65,6 @@ mod test{
     use crate::platform::mac::screen::transform_coords;
     use crate::Monitor;
 
-    fn union_all<'a>(iter: impl Iterator<Item=&'a Rect>)->Rect{
-        iter.fold(Rect::ZERO, |s, r| r.union(s) )
-    }
-
     fn pair(rect: Rect)->(Rect, Rect){
         (rect, rect)
     }
