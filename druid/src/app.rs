@@ -22,6 +22,8 @@ use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
 use crate::{theme, AppDelegate, Data, Env, LocalizedString, MenuDesc, Widget, WidgetExt};
 
+use druid_shell::WindowState;
+
 /// A function that modifies the initial environment.
 type EnvSetupFn<T> = dyn FnOnce(&mut Env, &T);
 
@@ -42,6 +44,7 @@ pub struct WindowConfig {
     pub(crate) maximized: Option<bool>,
     pub(crate) minimized: Option<bool>,
     pub(crate) level: Option<WindowLevel>,
+    pub(crate) state: WindowState,
 }
 
 /// A description of a window to be instantiated.
@@ -448,15 +451,9 @@ impl<T: Data> WindowDesc<T> {
         self
     }
 
-    /// Creates the window maximized.
-    pub fn maximized(mut self) -> Self {
-        self.config = self.config.maximized();
-        self
-    }
-
-    /// Creates the window minimized.
-    pub fn minimized(mut self) -> Self {
-        self.config = self.config.minimized();
+    /// Set initial state for the window.
+    pub fn set_window_state(mut self, state: WindowState) -> Self {
+        self.config = self.config.set_window_state(state);
         self
     }
 

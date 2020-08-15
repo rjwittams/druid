@@ -22,12 +22,6 @@ use objc::{class, msg_send, sel, sel_impl};
 use kurbo::Rect;
 use cocoa::appkit::NSScreen;
 
-pub(crate) fn get_display_size() -> Size {
-    let monitors = get_monitors();
-    let rect = monitors.iter().fold(Rect::ZERO, |rect, monitor| rect.union( monitor.virtual_rect()));
-    rect.size()
-}
-
 pub(crate) fn get_monitors() -> Vec<Monitor> {
     unsafe {
         let screens: id = msg_send![class![NSScreen], screens];

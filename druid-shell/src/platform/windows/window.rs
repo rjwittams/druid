@@ -65,6 +65,8 @@ use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::scale::{Scale, Scalable, ScaledArea};
 use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
 
+use crate::window::WindowState as WindowSizeState; // Avoid name conflict.
+
 /// The platform target DPI.
 ///
 /// Windows considers 96 the default value which represents a 1.0 scale factor.
@@ -86,8 +88,7 @@ pub(crate) struct WindowBuilder {
     size: Size,
     min_size: Option<Size>,
     position: Point,
-    maximized: bool,
-    minimized: bool,
+    state: WindowSizeState,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -122,11 +123,6 @@ pub enum PresentStrategy {
 pub struct WindowHandle {
     dwrite_factory: DwriteFactory,
     state: Weak<WindowState>,
-}
-
-enum WindowSizeState {
-    Maximize,
-    Minimize,
 }
 
 enum BlockingOp {
@@ -462,29 +458,16 @@ impl MyWndProc {
                 },
                 BlockingOp::SetWindowSizeState(val) => {
                     unsafe {
-                        let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
-                        if style == 0 {
-                            warn!(
-                                "failed to get window style: {}",
-                                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
-                            );
-                            return;
-                        }
                         let s = match val {
-                            WindowSizeState::Maximize => {
-                                if (style & WS_MAXIMIZE) != 0 {
-                                    SW_RESTORE
-                                } else {
-                                    SW_MAXIMIZE
-                                }
+                            WindowSizeState::MAXIMIZED => {
+                                SW_MAXIMIZE
                             },
-                            WindowSizeState::Minimize => {
-                                if (style & WS_MINIMIZE) != 0 {
-                                    SW_RESTORE
-                                } else {
-                                    SW_MINIMIZE
-                                }
+                            WindowSizeState::MINIMIZED => {
+                                SW_MINIMIZE
                             },
+                            WindowSizeState::RESTORED => {
+                                SW_RESTORE
+                            }
                         };
                         ShowWindow(hwnd,s);
                     }
@@ -1145,8 +1128,7 @@ impl WindowBuilder {
             size: Size::new(CW_USEDEFAULT as f64, CW_USEDEFAULT as f64),
             min_size: None,
             position: Point::new(CW_USEDEFAULT as f64, CW_USEDEFAULT as f64),
-            maximized: false,
-            minimized: false,
+            state: WindowSizeState::RESTORED,
         }
     }
 
@@ -1184,6 +1166,8 @@ impl WindowBuilder {
         self.position = position;
     }
 
+    pub fn set_window_state(&mut self, state: WindowSizeState) {
+        self.state = state;
     pub fn set_level(&self, _level:WindowLevel) {
         log::warn!("WindowBuilder::set_level  is currently unimplemented for Windows platforms.");
     }
@@ -1298,13 +1282,7 @@ impl WindowBuilder {
                 register_accel(hwnd, &accels);
             }
 
-            if self.maximized && !self.minimized {
-                handle.maximize();
-            }
-
-            if self.minimized && !self.maximized {
-                handle.minimize();
-            }
+            handle.set_window_state(self.state);
 
             Ok(handle)
         }
@@ -1661,11 +1639,11 @@ impl WindowHandle {
         }
     }
 
-    // Sets the window as maximized if it is not, restores it if it was.
-    pub fn maximize(&self) {
+    // Sets the window state.
+    pub fn set_window_state(&self, state : WindowSizeState) {
         if let Some(w) = self.state.upgrade() {
             if let Ok(mut q) = w.blocked_queue.try_borrow_mut() {
-                q.push(BlockingOp::SetWindowSizeState(WindowSizeState::Maximize))
+                q.push(BlockingOp::SetWindowSizeState(state))
             } else {
                 warn!(
                     "failed to borrow blocked queue"
@@ -1674,16 +1652,29 @@ impl WindowHandle {
         }
     }
 
-    // Sets the window as minimized if it is not, restores it if it was.
-    pub fn minimize(&self) {
+    // Gets the window state.
+    pub fn get_window_state(&self) -> WindowSizeState {
+        // We cant store state internally because it could be modified externaly.
         if let Some(w) = self.state.upgrade() {
-            if let Ok(mut q) = w.blocked_queue.try_borrow_mut() {
-                q.push(BlockingOp::SetWindowSizeState(WindowSizeState::Minimize))
-            } else {
-                warn!(
-                    "failed to borrow blocked queue"
-                );
+            let hwnd = w.hwnd.get();
+            unsafe {
+                let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+                if style == 0 {
+                    warn!(
+                        "failed to get window style: {}",
+                        Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                    );
+                }
+                if (style & WS_MAXIMIZE) != 0 {
+                    WindowSizeState::MAXIMIZED
+                } else if (style & WS_MINIMIZE) != 0 {
+                    WindowSizeState::MINIMIZED
+                } else {
+                    WindowSizeState::RESTORED
+                }
             }
+        } else {
+            WindowSizeState::RESTORED
         }
     }
 

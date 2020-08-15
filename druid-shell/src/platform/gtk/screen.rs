@@ -19,9 +19,6 @@ use kurbo::{Size, Rect, Point};
 use gdk::{Display};
 use gdk;
 
-pub(crate) fn get_display_size() -> Size {
-    get_monitors().iter().map(|x|x.virtual_rect() ).fold(Rect::ZERO, |a, b|a.union(b)).size()
-}
 
 fn translate_gdk_rectangle(r: gdk::Rectangle)->Rect{
     Rect::from_origin_size( Point::new(r.x as f64, r.y as f64), Size::new ( r.width as f64, r.height as f64) )

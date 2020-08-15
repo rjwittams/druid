@@ -57,6 +57,8 @@ use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
 use crate::Error;
 use super::screen;
 
+use crate::window::WindowState as WindowSizeState; // Avoid name conflict.
+
 #[allow(non_upper_case_globals)]
 const NSWindowDidBecomeKeyNotification: &str = "NSWindowDidBecomeKeyNotification";
 
@@ -195,12 +197,8 @@ impl WindowBuilder {
         self.position = Some(position)
     }
 
-    pub fn maximized(&mut self) {
-        self.maximized = true;
-    }
-
-    pub fn minimized(&mut self) {
-        self.minimized = true;
+    pub fn set_window_state(&self, state: WindowSizeState) {
+        self.state = state;
     }
 
     pub fn set_title(&mut self, title: impl Into<String>) {
@@ -986,6 +984,15 @@ impl WindowHandle {
             let current_frame: NSRect = msg_send![ window , frame];
             Size::new(current_frame.size.width, current_frame.size.height)
         }
+    }
+
+    pub fn set_window_state(&self, _state: WindowSizeState) {
+        log::warn!("WindowHandle::set_window_state is currently unimplemented for Mac.");
+    }
+
+    pub fn get_window_state(&self) -> WindowSizeState {
+        log::warn!("WindowHandle::get_window_state is currently unimplemented for Mac.");
+        WindowSizeState::RESTORED
     }
 
     pub fn maximize(&self) {

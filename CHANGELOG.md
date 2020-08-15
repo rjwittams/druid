@@ -8,14 +8,13 @@ You can find its changes [documented below](#060---2020-06-01).
 ### Highlights
 
 ### Added
-- `OPEN_PANEL_CANCELLED` and `SAVE_PANEL_CANCELLED` commands. ([#1061] by @cmyr)
 - Windows: Added Screen module to get information about monitors and the screen. ([#1037] by [@rhzk])
 - Added documentation to resizable() and show_titlebar() in WindowDesc. ([#1037] by [@rhzk])
 - Windows: Added internal functions to handle Re-entrancy. ([#1037] by [@rhzk])
-- Windows: WindowDesc: Create window with disabled titlebar, maximized or minimized and with position. ([#1037] by [@rhzk])
-- Windows: WindowHandle: Toggle maximize, minimize window. Toggle titlebar. Change size and position of window. ([#1037] by [@rhzk])
+- Windows: WindowDesc: Create window with disabled titlebar, maximized or minimized state, and with position. ([#1037] by [@rhzk])
+- Windows: WindowHandle: Change window state. Toggle titlebar. Change size and position of window. ([#1037] by [@rhzk])
 - Windows: WindowHandle: Added handle_titlebar(), Allowing a custom titlebar to behave like the OS one. ([#1037] by [@rhzk])
-- Added ctrl/shift key support to textbox. ([#1063] by [@vkahl])
+- `OPEN_PANEL_CANCELLED` and `SAVE_PANEL_CANCELLED` commands. ([#1061] by @cmyr)
 - Export `Image` and `ImageData` by default. ([#1011] by [@covercash2])
 - Re-export `druid_shell::Scalable` under `druid` namespace. ([#1075] by [@ForLoveOfCats])
 - `TextBox` now supports ctrl and shift hotkeys. ([#1076] by [@vkahl])
@@ -24,8 +23,7 @@ You can find its changes [documented below](#060---2020-06-01).
 ### Changed
 
 - Windows: Improved DPI handling. Druid should now redraw correctly when dpi changes. ([#1037] by [@rhzk])
-- winOS: Window created with OS default size if not set. ([#1037] by [@rhzk])
-- `Image` and `ImageData` exported by default. ([#1011] by [@covercash2])
+- windows: Window created with OS default size if not set. ([#1037] by [@rhzk])
 - `Scale::from_scale` to `Scale::new`, and `Scale` methods `scale_x` / `scale_y` to `x` / `y`. ([#1042] by [@xStrom])
 - Major rework of keyboard event handling. ([#1049] by [@raphlinus])
 - `Container::rounded` takes `KeyOrValue<f64>` instead of `f64`. ([#1054] by [@binomial0])
@@ -243,7 +241,6 @@ Last release without a changelog :(
 ## 0.1.1 - 2018-11-02
 ## 0.1.0 - 2018-11-02
 
-[@rhzk]: https://github.com/rhzk
 [@futurepaul]: https://github.com/futurepaul
 [@finnerale]: https://github.com/finnerale
 [@totsteps]: https://github.com/totsteps
@@ -274,6 +271,7 @@ Last release without a changelog :(
 [@sysint64]: https://github.com/sysint64
 [@justinmoon]: https://github.com/justinmoon
 [@rjwittams]: https://github.com/rjwittams
+[@rhzk]: https://github.com/rhzk
 
 [#599]: https://github.com/linebender/druid/pull/599
 [#611]: https://github.com/linebender/druid/pull/611
@@ -375,6 +373,7 @@ Last release without a changelog :(
 [#1018]: https://github.com/linebender/druid/pull/1018
 [#1025]: https://github.com/linebender/druid/pull/1025
 [#1028]: https://github.com/linebender/druid/pull/1028
+[#1037]: https://github.com/linebender/druid/pull/1037
 [#1042]: https://github.com/linebender/druid/pull/1042
 [#1043]: https://github.com/linebender/druid/pull/1043
 [#1049]: https://github.com/linebender/druid/pull/1049
@@ -393,7 +392,6 @@ Last release without a changelog :(
 [#1100]: https://github.com/linebender/druid/pull/1100
 [#1103]: https://github.com/linebender/druid/pull/1103
 [#1119]: https://github.com/linebender/druid/pull/1119
-[#1037]: https://github.com/linebender/druid/pull/1037
 [#1120]: https://github.com/linebender/druid/pull/1120
 
 [Unreleased]: https://github.com/linebender/druid/compare/v0.6.0...master

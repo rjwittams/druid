@@ -48,6 +48,8 @@ use super::keycodes;
 use super::menu::Menu;
 use super::util;
 
+use crate::window::WindowState as WindowSizeState; // Avoid name conflict.
+
 /// The platform target DPI.
 ///
 /// GTK considers 96 the default value which represents a 1.0 scale factor.
@@ -96,6 +98,7 @@ pub(crate) struct WindowBuilder {
     menu: Option<Menu>,
     position: Option<Point>,
     level: Option<WindowLevel>,
+    state: Option<WindowState>,
     size: Size,
     min_size: Option<Size>,
     resizable: bool,
@@ -134,6 +137,7 @@ impl WindowBuilder {
             size: Size::new(500.0, 400.0),
             position: None,
             level: None,
+            state: None,
             min_size: None,
             resizable: true,
             show_titlebar: true,
@@ -168,12 +172,8 @@ impl WindowBuilder {
         self.level = Some(level);
     }
 
-    pub fn maximized(&self) {
-        log::warn!("WindowBuilder::maximized is currently unimplemented for gtk.");
-    }
-
-    pub fn minimized(&self) {
-        log::warn!("WindowBuilder::minimized is currently unimplemented for gtk.");
+    pub fn set_window_state(&self, _state: WindowSizeState) {
+        self.state = Some(state);
     }
 
     pub fn set_title(&mut self, title: impl Into<String>) {
@@ -241,6 +241,9 @@ impl WindowBuilder {
         }
         if let Some(pos) = self.position {
             handle.set_position(pos);
+        }
+        if let Some(state) = self.state {
+            handle.set_state(state)
         }
 
         if let Some(menu) = self.menu {
@@ -621,6 +624,15 @@ impl WindowHandle {
             log::warn!("Could not get size for GTK window");
             Size::new(0. , 0.)
         }
+    }
+
+    pub fn set_window_state(&self, _state: WindowSizeState) {
+        log::warn!("WindowHandle::set_window_state is currently unimplemented for gtk.");
+    }
+
+    pub fn get_window_state(&self) -> WindowSizeState {
+        log::warn!("WindowHandle::get_window_state is currently unimplemented for gtk.");
+        WindowSizeState::RESTORED
     }
 
     pub fn maximize(&self) {
