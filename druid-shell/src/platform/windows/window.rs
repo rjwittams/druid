@@ -1168,18 +1168,10 @@ impl WindowBuilder {
 
     pub fn set_window_state(&mut self, state: WindowSizeState) {
         self.state = state;
+    }
+
     pub fn set_level(&self, _level:WindowLevel) {
         log::warn!("WindowBuilder::set_level  is currently unimplemented for Windows platforms.");
-    }
-
-    /// Creates the window maximized.
-    pub fn maximized(&mut self) {
-        self.maximized = true;
-    }
-
-    /// Creates the window minimized.
-    pub fn minimized(&mut self) {
-        self.minimized = true;
     }
 
     pub fn build(self) -> Result<WindowHandle, Error> {
