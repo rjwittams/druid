@@ -41,10 +41,8 @@ pub struct WindowConfig {
     pub(crate) position: Option<Point>,
     pub(crate) resizable: Option<bool>,
     pub(crate) show_titlebar: Option<bool>,
-    pub(crate) maximized: Option<bool>,
-    pub(crate) minimized: Option<bool>,
     pub(crate) level: Option<WindowLevel>,
-    pub(crate) state: WindowState,
+    pub(crate) state: Option<WindowState>,
 }
 
 /// A description of a window to be instantiated.
@@ -204,9 +202,8 @@ impl Default for WindowConfig {
             position: None,
             resizable: None,
             show_titlebar: None,
-            maximized: None,
-            minimized: None,
             level: None,
+            state: None
         }
     }
 }
@@ -276,14 +273,8 @@ impl WindowConfig {
     }
 
     /// Creates the window maximized.
-    pub fn maximized(mut self) -> Self {
-        self.maximized = Some(true);
-        self
-    }
-
-    /// Creates the window minimized.
-    pub fn minimized(mut self) -> Self {
-        self.minimized = Some(true);
+    pub fn set_window_state(mut self, state: WindowState) -> Self{
+        self.state = Some(state);
         self
     }
 
@@ -307,17 +298,13 @@ impl WindowConfig {
             builder.set_position(position);
         }
 
-        if let Some(true) = self.maximized {
-            builder.maximized();
-        }
-
-        if let Some(true) = self.minimized {
-            builder.minimized();
-        }
-
         if let Some(level) = self.level {
             log::info!("Set level on builder{:?}", level);
             builder.set_level(level)
+        }
+
+        if let Some(state) = self.state{
+            builder.set_window_state(state);
         }
     }
 
@@ -341,16 +328,12 @@ impl WindowConfig {
             win_handle.set_position(position);
         }
 
-        if let Some(true) = self.maximized {
-            win_handle.maximize();
-        }
-
-        if let Some(true) = self.minimized {
-            win_handle.minimize();
-        }
-
         if let Some(level) = self.level {
             win_handle.set_level(level)
+        }
+
+        if let Some(state) = self.state{
+            win_handle.set_window_state(state);
         }
     }
 }

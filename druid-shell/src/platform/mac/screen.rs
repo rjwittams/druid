@@ -15,11 +15,10 @@
 //! macOS Monitors and Screen information.
 
 use crate::screen::Monitor;
-use crate::kurbo::Size;
+use crate::kurbo::Rect;
 use cocoa::foundation::NSArray;
 use cocoa::base::{id};
 use objc::{class, msg_send, sel, sel_impl};
-use kurbo::Rect;
 use cocoa::appkit::NSScreen;
 
 pub(crate) fn get_monitors() -> Vec<Monitor> {
@@ -38,6 +37,8 @@ pub(crate) fn get_monitors() -> Vec<Monitor> {
             monitors_build.push( (frame_r,  vis_frame_r) );
             total_rect = total_rect.union(frame_r)
         }
+        // TODO save this total_rect.y1 for screen coord transformations
+        // and invalidate on monitor changes
         transform_coords(monitors_build, total_rect.y1)
     }
 }

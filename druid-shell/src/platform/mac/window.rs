@@ -54,10 +54,7 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::scale::Scale;
 use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
-use crate::Error;
-use super::screen;
-
-use crate::window::WindowState as WindowSizeState; // Avoid name conflict.
+use crate::{Error, WindowState};
 
 #[allow(non_upper_case_globals)]
 const NSWindowDidBecomeKeyNotification: &str = "NSWindowDidBecomeKeyNotification";
@@ -119,8 +116,7 @@ pub(crate) struct WindowBuilder {
     min_size: Option<Size>,
     position: Option<Point>,
     level: Option<WindowLevel>,
-    maximized: bool,
-    minimized: bool,
+    window_state: Option<WindowState>,
     resizable: bool,
     show_titlebar: bool,
     borderless: bool // This may never be needed
@@ -160,8 +156,7 @@ impl WindowBuilder {
             min_size: None,
             position: None,
             level: None,
-            maximized: false,
-            minimized: false,
+            window_state: None,
             resizable: true,
             show_titlebar: true,
             borderless: false
@@ -197,8 +192,8 @@ impl WindowBuilder {
         self.position = Some(position)
     }
 
-    pub fn set_window_state(&self, state: WindowSizeState) {
-        self.state = state;
+    pub fn set_window_state(&mut self, state: WindowState) {
+        self.window_state = Some(state);
     }
 
     pub fn set_title(&mut self, title: impl Into<String>) {
@@ -264,7 +259,7 @@ impl WindowBuilder {
             content_view.addSubview_(view);
             let view_state: *mut c_void = *(*view).get_ivar("viewState");
             let view_state = &mut *(view_state as *mut ViewState);
-            let handle = WindowHandle {
+            let mut handle = WindowHandle {
                 nsview: view_state.nsview.clone(),
                 idle_queue,
             };
@@ -272,11 +267,11 @@ impl WindowBuilder {
             if let Some(pos) = self.position{
                 handle.set_position(pos);
             }
-            if self.minimized{
-                handle.minimize()
-            }else if self.maximized {
-                handle.maximize()
+            if let Some(window_state) = self.window_state {
+                handle.set_window_state(window_state);
             }
+
+
             if let Some(level) = self.level {
                 handle.set_level(level)
             }
@@ -935,7 +930,7 @@ impl WindowHandle {
     // Need to translate mac y coords, as they start from bottom left
     pub fn set_position(&self, position: Point) {
         unsafe {
-            let screen_height = screen::get_display_size().height;
+            let screen_height = crate::Screen::get_display_rect().height(); // TODO this should be the max y in orig mac coords
             let window: id =  msg_send![*self.nsview.load(), window];
             let frame :NSRect = msg_send![ window , frame];
 
@@ -948,7 +943,7 @@ impl WindowHandle {
 
     pub fn get_position(&self) -> Point {
         unsafe {
-            let screen_height = screen::get_display_size().height;
+            let screen_height = crate::Screen::get_display_rect().height(); // TODO
 
             let window: id =  msg_send![*self.nsview.load(), window];
             let current_frame:NSRect = msg_send![ window , frame];
@@ -986,29 +981,41 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_window_state(&self, _state: WindowSizeState) {
-        log::warn!("WindowHandle::set_window_state is currently unimplemented for Mac.");
-    }
-
-    pub fn get_window_state(&self) -> WindowSizeState {
-        log::warn!("WindowHandle::get_window_state is currently unimplemented for Mac.");
-        WindowSizeState::RESTORED
-    }
-
-    pub fn maximize(&self) {
-        unsafe {
+    pub fn get_window_state(&self) -> WindowState {
+        unsafe{
             let window: id = msg_send![*self.nsview.load(), window];
-            let screen: id = msg_send![window, screen];
-            let vis_frame: NSRect  = msg_send![screen, visibleFrame];
-            let () = msg_send![window, setFrame: vis_frame display: YES];
+            let isMin: BOOL = msg_send![window, isMiniaturized];
+            if isMin != NO {
+                return WindowState::MINIMIZED
+            }
+            let isZoomed: BOOL = msg_send![window, isZoomed];
+            if isZoomed != NO {
+                return WindowState::MAXIMIZED
+            }
         }
+        WindowState::RESTORED
     }
 
-    pub fn minimize(&self) {
+    pub fn set_window_state(&mut self, state: WindowState) {
+        let cur_state = self.get_window_state();
         unsafe {
             let window: id = msg_send![*self.nsview.load(), window];
-
-            let () = msg_send![window, performMiniaturize:self];
+            match (state, cur_state){
+                (s1, s2) if s1 == s2 => (),
+                (WindowState::MINIMIZED,_)=>{
+                    let () = msg_send![window, performMiniaturize:self];
+                },
+                (WindowState::MAXIMIZED,_)=>{
+                    let () = msg_send![window, performZoom:self];
+                }
+                (WindowState::RESTORED, WindowState::MAXIMIZED) => {
+                    let () = msg_send![window, performZoom:self];
+                }
+                (WindowState::RESTORED, WindowState::MINIMIZED) => {
+                    let () = msg_send![window, deminiaturize:self];
+                }
+                (WindowState::RESTORED, WindowState::RESTORED) => {} // Can't be reached
+            }
         }
     }
 
