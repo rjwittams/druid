@@ -367,6 +367,11 @@ impl WindowBuilder {
         self.menu = Some(menu);
     }
 
+    // Used to set a parent window when creating child-windows
+    pub(crate) fn set_parent(&mut self, parent: WindowHandle) {
+        // ignore
+    }
+
     pub fn build(self) -> Result<WindowHandle, Error> {
         let window = web_sys::window().ok_or_else(|| Error::NoWindow)?;
         let canvas = window

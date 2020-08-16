@@ -148,6 +148,11 @@ impl WindowBuilder {
         // TODO(x11/menus): implement WindowBuilder::set_menu (currently a no-op)
     }
 
+    // Used to set a parent window when creating child-windows
+    pub(crate) fn set_parent(&mut self, parent: WindowHandle) {
+        log::warn!("WindowBuilder::set_parent is currently unimplemented for X11 platforms.");
+    }
+
     /// Registers and returns all the atoms that the window will need.
     fn atoms(&self, window_id: u32) -> Result<WindowAtoms, Error> {
         let conn = self.app.connection();

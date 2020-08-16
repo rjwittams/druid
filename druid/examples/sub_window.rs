@@ -138,15 +138,11 @@ impl<T, W: Widget<T>> Controller<T, W> for TooltipController {
                     } else {
                         let req = SubWindowRequirement::new(
                             ctx.widget_id(),
-                            WindowConfig::default()
-                                .show_titlebar(false)
-                                .window_size(Size::new(100.0, 23.0))
-                                .set_level(WindowLevel::Tooltip)
-                                .set_position(
-                                    ctx.window().get_position()
-                                        + window_pos.to_vec2()
-                                        + cursor_size.to_vec2(),
-                                ),
+                            WindowConfig::tooltip(
+                                Size::new(100.0, 23.0),
+                            ctx.window().get_position()
+                            + window_pos.to_vec2()
+                            + cursor_size.to_vec2()),
                             false,
                             Label::<()>::new(self.tip.clone()),
                             (),

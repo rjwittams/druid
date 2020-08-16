@@ -204,6 +204,11 @@ impl WindowBuilder {
         self.menu = Some(menu);
     }
 
+    // Used to set a parent window when creating child-windows
+    pub(crate) fn set_parent(&mut self, parent: WindowHandle) {
+        log::warn!("WindowBuilder::set_parent is currently unimplemented for mac platforms.");
+    }
+
     pub fn build(self) -> Result<WindowHandle, Error> {
         assert_main_thread();
         unsafe {

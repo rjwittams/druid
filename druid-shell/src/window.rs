@@ -306,6 +306,10 @@ impl WindowHandle {
     pub fn get_scale(&self) -> Result<Scale, Error> {
         self.0.get_scale().map_err(Into::into)
     }
+
+    pub(crate) fn get_platform_handle(&self) -> platform::WindowHandle {
+        self.0.clone()
+    }
 }
 
 /// A builder type for creating new windows.
@@ -392,6 +396,12 @@ impl WindowBuilder {
     /// [`state`]: enum.WindowState.html
     pub fn set_window_state(&mut self, state: WindowState) {
         self.0.set_window_state(state);
+    }
+
+    /// Set a parent window, if set will create the new window
+    /// as a child.
+    pub fn set_parent(&mut self, parent: WindowHandle) {
+        self.0.set_parent(parent.get_platform_handle());
     }
 
     /// Attempt to construct the platform window.

@@ -43,6 +43,9 @@ pub struct WindowConfig {
     pub(crate) show_titlebar: Option<bool>,
     pub(crate) level: Option<WindowLevel>,
     pub(crate) state: Option<WindowState>,
+    //TODO: Maybe place this somewhere else
+    pub(crate) parent: Option<WindowId>,
+    pub(crate) handle: Option<WindowHandle>,
 }
 
 /// A description of a window to be instantiated.
@@ -203,7 +206,26 @@ impl Default for WindowConfig {
             resizable: None,
             show_titlebar: None,
             level: None,
-            state: None
+            state: None,
+            parent: None,
+            handle: None,
+        }
+    }
+}
+
+impl WindowConfig {
+    #[allow(dead_code)]
+    /// Creates a WindowCofig
+    /// with default values for a tooltip window.
+    pub fn tooltip(size: Size, position: Point) -> Self {
+        WindowConfig {
+            size: Some(size),
+            position: Some(position),
+            resizable: Some(false),
+            show_titlebar: Some(false),
+            level: Some(WindowLevel::Tooltip),
+            state: Some(WindowState::RESTORED),
+            ..Default::default()
         }
     }
 }

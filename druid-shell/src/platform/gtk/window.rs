@@ -184,6 +184,11 @@ impl WindowBuilder {
         self.menu = Some(menu);
     }
 
+    // Used to set a parent window when creating child-windows
+    pub(crate) fn set_parent(&mut self, parent: WindowHandle) {
+        log::warn!("WindowBuilder::set_parent is currently unimplemented for gtk platforms.");
+    }
+
     pub fn build(self) -> Result<WindowHandle, ShellError> {
         let handler = self
             .handler

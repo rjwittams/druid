@@ -690,7 +690,7 @@ impl<T: Data> AppState<T> {
         &mut self,
         id: WindowId,
         mut pending: PendingWindow<T>,
-        config: WindowConfig,
+        mut config: WindowConfig,
     ) -> Result<WindowHandle, PlatformError> {
         let mut builder = WindowBuilder::new(self.app());
         config.apply_to_builder(&mut builder);
@@ -700,6 +700,15 @@ impl<T: Data> AppState<T> {
 
         pending.title.resolve(&data, &env);
         builder.set_title(pending.title.display_text());
+
+        if let Some(parent_id) = config.parent {
+            if let Ok(inner) = self.inner.try_borrow() {
+                if let Some(parent) = inner.windows.get(parent_id) {
+                    builder.set_parent(parent.handle.clone());
+                }
+            }
+        }
+        
 
         let platform_menu = pending
             .menu
@@ -713,7 +722,11 @@ impl<T: Data> AppState<T> {
         builder.set_handler(Box::new(handler));
 
         self.add_window(id, pending);
-        builder.build()
+        let res = builder.build();
+        if let Ok(handle) = res.clone() {
+            config.handle = Some(handle);
+        }
+        res
     }
 }
 

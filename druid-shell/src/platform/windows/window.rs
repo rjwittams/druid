@@ -89,6 +89,7 @@ pub(crate) struct WindowBuilder {
     min_size: Option<Size>,
     position: Point,
     state: WindowSizeState,
+    parent: Option<WindowHandle>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1129,6 +1130,7 @@ impl WindowBuilder {
             min_size: None,
             position: Point::new(CW_USEDEFAULT as f64, CW_USEDEFAULT as f64),
             state: WindowSizeState::RESTORED,
+            parent: None,
         }
     }
 
@@ -1172,6 +1174,11 @@ impl WindowBuilder {
 
     pub fn set_level(&self, _level:WindowLevel) {
         log::warn!("WindowBuilder::set_level  is currently unimplemented for Windows platforms.");
+    }
+
+    // Used to set a parent window when creating child-windows
+    pub(crate) fn set_parent(&mut self, parent: WindowHandle) {
+        self.parent = Some(parent);
     }
 
     pub fn build(self) -> Result<WindowHandle, Error> {
@@ -1251,6 +1258,13 @@ impl WindowBuilder {
                 dwExStyle |= WS_EX_NOREDIRECTIONBITMAP;
             }
             
+            let mut parent = 0 as HWND;
+            if let Some(p) = self.parent {
+                if let Some(parent_hwnd) = p.get_hwnd() {
+                    parent = parent_hwnd;
+                }
+            }
+
             let hwnd = create_window(
                 dwExStyle,
                 class_name.as_ptr(),
@@ -1260,7 +1274,7 @@ impl WindowBuilder {
                 self.position.y as i32,
                 size_px.width as i32,
                 size_px.height as i32,
-                0 as HWND,
+                parent,
                 hmenu,
                 0 as HINSTANCE,
                 win,

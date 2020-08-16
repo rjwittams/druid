@@ -423,7 +423,8 @@ impl EventCtx<'_, '_> {
 
     // TODO - dynamically check that the type of the pod we are registering this on is the same as the type of the
     // requirement. Needs type ids recorded. This goes wrong if you don't have a pod between you and a lens.
-    pub fn new_sub_window(&mut self, requirement: SubWindowRequirement) {
+    pub fn new_sub_window(&mut self, mut requirement: SubWindowRequirement) {
+        requirement.window_config.parent = Some(self.window_id());
         if let Some(id) = requirement.host_id {
             self.widget_state.add_sub_window_host(id);
         }
