@@ -58,16 +58,21 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> ScopePolicy
     }
 }
 
-struct StateHolder<SP: ScopePolicy> {
-    state: Option<SP::State>,
+
+pub struct Scope<SP: ScopePolicy, W: Widget<SP::State>> {
     scope_policy: SP,
+    state: Option<SP::State>,
+    inner: WidgetPod<SP::State, W>,
+    widget_added: bool,
 }
 
-impl<SP: ScopePolicy> StateHolder<SP> {
-    pub fn new(state_access: SP) -> Self {
-        StateHolder {
+impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
+    pub fn new(scope_policy: SP, inner: W) -> Self {
+        Scope {
+            scope_policy,
             state: None,
-            scope_policy: state_access,
+            inner: WidgetPod::new(inner),
+            widget_added: false,
         }
     }
 
@@ -78,14 +83,14 @@ impl<SP: ScopePolicy> StateHolder<SP> {
         }
     }
 
-    fn with_state<V>(&mut self, data: &SP::In, mut f: impl FnMut(&SP::State) -> V) -> V {
+    fn with_state<V>(&mut self, data: &SP::In, mut f: impl FnMut(&SP::State, &mut WidgetPod<SP::State, W>) -> V) -> V {
         self.ensure_state(data);
-        f(self.state.as_ref().unwrap())
+        f(self.state.as_ref().unwrap(), &mut self.inner)
     }
 
-    fn with_state_mut<V>(&mut self, data: &SP::In, mut f: impl FnMut(&mut SP::State) -> V) -> V {
+    fn with_state_mut<V>(&mut self, data: &SP::In, mut f: impl FnMut(&mut SP::State, &mut WidgetPod<SP::State, W>) -> V) -> V {
         self.ensure_state(data);
-        f(self.state.as_mut().unwrap())
+        f(self.state.as_mut().unwrap(), &mut self.inner)
     }
 
     fn write_back_input(&mut self, data: &mut SP::In) {
@@ -95,29 +100,11 @@ impl<SP: ScopePolicy> StateHolder<SP> {
     }
 }
 
-pub struct Scope<SP: ScopePolicy, W: Widget<SP::State>> {
-    sh: StateHolder<SP>, // These parts are bundled away from inner in order to help the borrow checker.
-    inner: WidgetPod<SP::State, W>,
-    widget_added: bool,
-}
-
-impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
-    pub fn new(state_access: SP, inner: W) -> Self {
-        Scope {
-            sh: StateHolder::new(state_access),
-            inner: WidgetPod::new(inner),
-            widget_added: false,
-        }
-    }
-}
-
 impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SP::In, env: &Env) {
         if self.widget_added {
-            let holder = &mut self.sh;
-            let inner = &mut self.inner;
-            holder.with_state_mut(data, |state| inner.event(ctx, event, state, env));
-            holder.write_back_input(data);
+            self.with_state_mut(data, |state, inner| inner.event(ctx, event, state, env));
+            self.write_back_input(data);
             ctx.request_update()
         } else {
             log::info!("Scope dropping event {:?}", event);
@@ -125,19 +112,14 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SP::In, env: &Env) {
-        let holder = &mut self.sh;
-        let inner = &mut self.inner;
-        holder.with_state(data, |state| inner.lifecycle(ctx, event, state, env));
+        self.with_state(data, |state, inner| inner.lifecycle(ctx, event, state, env));
         if let LifeCycle::WidgetAdded = event {
             self.widget_added = true;
         }
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &SP::In, data: &SP::In, env: &Env) {
-        let holder = &mut self.sh;
-        let inner = &mut self.inner;
-
-        holder.with_state(data, |state| {
+        self.with_state(data, |state, inner| {
             inner.update(ctx, state, env)
         });
     }
@@ -149,9 +131,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
         data: &SP::In,
         env: &Env,
     ) -> Size {
-        let holder = &mut self.sh;
-        let inner = &mut self.inner;
-        holder.with_state(data, |state| {
+        self.with_state(data, |state, inner| {
             let size = inner.layout(ctx, bc, state, env);
             inner.set_layout_rect(ctx, state, env, Rect::from_origin_size(Point::ORIGIN, size));
             size
@@ -159,8 +139,6 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &SP::In, env: &Env) {
-        let holder = &mut self.sh;
-        let inner = &mut self.inner;
-        holder.with_state(data, |state| inner.paint_raw(ctx, state, env));
+        self.with_state(data, |state, inner| inner.paint_raw(ctx, state, env));
     }
 }
