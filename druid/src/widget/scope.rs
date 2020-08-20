@@ -140,21 +140,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
             let inner = &mut self.inner;
             holder.with_state_mut(data, |state| inner.event(ctx, event, state, env));
             holder.write_back_input(data);
-
-            // Because our input data may not have changed,
-            // we have to call update - widget pod will not trigger it.
-            // Effectively we are a contained app
-
-            // It is safe to update children now
-
-            let mut update_ctx = UpdateCtx {
-                state: ctx.state,
-                widget_state: ctx.widget_state,
-            };
-
-            holder.call_if_state_changed(data, |old_state, state| {
-                inner.update(&mut update_ctx, &old_state, state, env)
-            })
+            ctx.request_update()
         } else {
             log::info!("Scope dropping event {:?}", event);
         }
