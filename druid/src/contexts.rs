@@ -326,6 +326,20 @@ impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, 
     pub fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>) {
         self.state.set_menu(menu);
     }
+
+    // TODO - dynamically check that the type of the pod we are registering this on is the same as the type of the
+    // requirement. Needs type ids recorded. This goes wrong if you don't have a pod between you and a lens.
+    pub fn new_sub_window(&mut self, requirement: SubWindowRequirement) {
+        if let Some(id) = requirement.host_id {
+            self.widget_state.add_sub_window_host(id);
+        }
+
+        self.submit_command(
+            commands::NEW_SUB_WINDOW.with(SingleUse::new(requirement)),
+            None,
+        );
+    }
+
 });
 
 // methods on event, update, and lifecycle
@@ -418,19 +432,6 @@ impl EventCtx<'_, '_> {
                 log::error!("EventCtx::show_context_menu: {}", MSG)
             }
         }
-    }
-
-    // TODO - dynamically check that the type of the pod we are registering this on is the same as the type of the
-    // requirement. Needs type ids recorded. This goes wrong if you don't have a pod between you and a lens.
-    pub fn new_sub_window(&mut self, requirement: SubWindowRequirement) {
-        if let Some(id) = requirement.host_id {
-            self.widget_state.add_sub_window_host(id);
-        }
-
-        self.submit_command(
-            commands::NEW_SUB_WINDOW.with(SingleUse::new(requirement)),
-            None,
-        );
     }
 
     /// Set the event as "handled", which stops its propagation to other
