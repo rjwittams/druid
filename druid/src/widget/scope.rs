@@ -1,8 +1,6 @@
-use crate::{
-    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
-    Size, UpdateCtx, Widget,
-};
+use crate::{BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx, Size, UpdateCtx, Widget, WidgetPod};
 use std::marker::PhantomData;
+use crate::kurbo::{Rect, Point};
 
 pub trait ScopePolicy {
     type In: Data;
@@ -62,7 +60,6 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> ScopePolicy
 
 struct StateHolder<SP: ScopePolicy> {
     state: Option<SP::State>,
-    old_state: Option<SP::State>,
     scope_policy: SP,
 }
 
@@ -70,7 +67,6 @@ impl<SP: ScopePolicy> StateHolder<SP> {
     pub fn new(state_access: SP) -> Self {
         StateHolder {
             state: None,
-            old_state: None,
             scope_policy: state_access,
         }
     }
@@ -87,24 +83,6 @@ impl<SP: ScopePolicy> StateHolder<SP> {
         f(self.state.as_ref().unwrap())
     }
 
-    fn call_if_state_changed(&mut self, data: &SP::In, mut f: impl FnMut(&SP::State, &SP::State)) {
-        self.ensure_state(data);
-        let state = self.state.as_ref().unwrap();
-        match &mut self.old_state {
-            Some(os) => {
-                if !os.same(state) {
-                    f(os, state);
-                    *os = state.clone()
-                }
-            }
-            None => {
-                let temp_old_state = state.clone();
-                f(&temp_old_state, state);
-                self.old_state = Some(temp_old_state)
-            }
-        }
-    }
-
     fn with_state_mut<V>(&mut self, data: &SP::In, mut f: impl FnMut(&mut SP::State) -> V) -> V {
         self.ensure_state(data);
         f(self.state.as_mut().unwrap())
@@ -119,7 +97,7 @@ impl<SP: ScopePolicy> StateHolder<SP> {
 
 pub struct Scope<SP: ScopePolicy, W: Widget<SP::State>> {
     sh: StateHolder<SP>, // These parts are bundled away from inner in order to help the borrow checker.
-    inner: W,
+    inner: WidgetPod<SP::State, W>,
     widget_added: bool,
 }
 
@@ -127,7 +105,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
     pub fn new(state_access: SP, inner: W) -> Self {
         Scope {
             sh: StateHolder::new(state_access),
-            inner,
+            inner: WidgetPod::new(inner),
             widget_added: false,
         }
     }
@@ -159,8 +137,8 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
 
-        holder.call_if_state_changed(data, |old_state, state| {
-            inner.update(ctx, &old_state, state, env)
+        holder.with_state(data, |state| {
+            inner.update(ctx, state, env)
         });
     }
 
@@ -173,12 +151,16 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     ) -> Size {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
-        holder.with_state(data, |state| inner.layout(ctx, bc, state, env))
+        holder.with_state(data, |state| {
+            let size = inner.layout(ctx, bc, state, env);
+            inner.set_layout_rect(ctx, state, env, Rect::from_origin_size(Point::ORIGIN, size));
+            size
+        })
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &SP::In, env: &Env) {
         let holder = &mut self.sh;
         let inner = &mut self.inner;
-        holder.with_state(data, |state| inner.paint(ctx, state, env));
+        holder.with_state(data, |state| inner.paint_raw(ctx, state, env));
     }
 }
