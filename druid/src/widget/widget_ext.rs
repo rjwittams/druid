@@ -19,8 +19,8 @@ use super::{
     Align, BackgroundBrush, Click, Container, Controller, ControllerHost, EnvScope,
     IdentityWrapper, Padding, Parse, SizedBox, WidgetId,
 };
-use crate::{Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LensWrap, UnitPoint, Widget};
 use crate::widget::Rotated;
+use crate::{Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LensWrap, UnitPoint, Widget};
 
 /// A trait that provides extra methods for combining `Widget`s.
 pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
@@ -242,7 +242,9 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
 
     /// Rotate a widget by a number of quarter turns clockwise.
     /// Mainly useful for text decorations.
-    fn rotate(self, quarter_turns: u8) -> Rotated<Self>{ Rotated::new( self, quarter_turns) }
+    fn rotate(self, quarter_turns: u8) -> Rotated<Self> {
+        Rotated::new(self, quarter_turns)
+    }
 
     /// Wrap this widget in a `Box`.
     fn boxed(self) -> Box<dyn Widget<T>> {

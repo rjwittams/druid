@@ -1,4 +1,7 @@
-use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, Tabs, ViewSwitcher, TabOrientation};
+use druid::widget::{
+    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
+    SizedBox, TabOrientation, Tabs, ViewSwitcher,
+};
 use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc};
 
 #[derive(Data, Clone)]
@@ -13,7 +16,7 @@ struct Advanced {
 struct TabConfig {
     axis: Axis,
     cross: CrossAxisAlignment,
-    rotation: TabOrientation
+    rotation: TabOrientation,
 }
 
 #[derive(Data, Clone, Lens)]
@@ -34,7 +37,7 @@ pub fn main() {
         tab_config: TabConfig {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
-            rotation: TabOrientation::Standard
+            rotation: TabOrientation::Standard,
         },
         basic: Basic {},
         advanced: Advanced { number: 13 },
@@ -85,7 +88,7 @@ fn build_root_widget() -> impl Widget<AppState> {
             ("None", TabOrientation::Turns(0)),
             ("Up", TabOrientation::Turns(3)),
             ("Down", TabOrientation::Turns(1)),
-            ("Aussie", TabOrientation::Turns(2))
+            ("Aussie", TabOrientation::Turns(2)),
         ]))
         .lens(AppState::tab_config.then(TabConfig::rotation));
 
@@ -94,7 +97,7 @@ fn build_root_widget() -> impl Widget<AppState> {
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(group(axis_picker))
         .with_child(group(cross_picker))
-        .with_child( group(rot_picker))
+        .with_child(group(rot_picker))
         .with_flex_spacer(1.)
         .fix_width(200.0);
 

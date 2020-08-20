@@ -17,7 +17,7 @@
 
 use crate::piet::RenderContext;
 use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, Scope, ScopePolicy};
-use crate::{theme, Insets, Affine};
+use crate::{theme, Affine, Insets};
 use crate::{
     BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
     PaintCtx, Point, Rect, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
@@ -75,7 +75,8 @@ impl<T: Data> TabBar<T> {
     pub fn find_idx(&self, pos: Point) -> Option<TabIndex> {
         let major_pix = self.axis.major_pos(pos);
         let axis = self.axis;
-        let res = self.tabs
+        let res = self
+            .tabs
             .binary_search_by_key(&((major_pix * 10.) as i64), |tab| {
                 let rect = tab.layout_rect();
                 let far_pix = axis.major_pos(rect.origin()) + axis.major(rect.size());
@@ -83,9 +84,7 @@ impl<T: Data> TabBar<T> {
             });
         match res {
             Ok(idx) => Some(idx),
-            Err(idx) if idx < self.tabs.len()  => {
-                Some(idx)
-            },
+            Err(idx) if idx < self.tabs.len() => Some(idx),
             _ => None,
         }
     }
@@ -98,7 +97,9 @@ impl<T: Data> TabBar<T> {
                 .with_text_color(Color::WHITE)
                 .with_text_size(12.0)
                 .padding(Insets::uniform_xy(9., 5.));
-            let rot = self.orientation.rotate_and_box(label, self.axis, self.cross);
+            let rot = self
+                .orientation
+                .rotate_and_box(label, self.axis, self.cross);
 
             self.tabs.push(WidgetPod::new(rot));
         }
@@ -205,7 +206,7 @@ impl<T: Data> Widget<TabsState<T>> for TabBar<T> {
         let highlight = env.get(theme::PRIMARY_LIGHT);
         for (idx, tab) in self.tabs.iter_mut().enumerate() {
             let rect = tab.layout_rect();
-            let rect = Rect::from_origin_size( rect.origin(), rect.size() );
+            let rect = Rect::from_origin_size(rect.origin(), rect.size());
             let bg = match (idx == data.selected, Some(idx) == self.hot) {
                 (_, true) => env.get(theme::BUTTON_DARK),
                 (true, false) => env.get(theme::BACKGROUND_LIGHT),
@@ -236,39 +237,44 @@ impl<T: Data> Widget<TabsState<T>> for TabBar<T> {
     }
 }
 
-pub struct TabsTransition{
+pub struct TabsTransition {
     previous_idx: TabIndex,
     current_time: u64,
     length: u64,
-    increasing: bool
+    increasing: bool,
 }
 
 impl TabsTransition {
     pub fn new(previous_idx: TabIndex, length: u64, increasing: bool) -> Self {
-        TabsTransition {previous_idx, current_time: 0, length, increasing: increasing }
+        TabsTransition {
+            previous_idx,
+            current_time: 0,
+            length,
+            increasing,
+        }
     }
 
-    pub fn live(&self)->bool{
+    pub fn live(&self) -> bool {
         self.current_time < self.length
     }
 
-    pub fn fraction(&self)->f64{
+    pub fn fraction(&self) -> f64 {
         (self.current_time as f64) / (self.length as f64)
     }
 
-    pub fn previous_transform(&self, axis: Axis, main: f64) ->Affine{
+    pub fn previous_transform(&self, axis: Axis, main: f64) -> Affine {
         let x = if self.increasing {
-            - main * self.fraction()
-        }else{
+            -main * self.fraction()
+        } else {
             main * self.fraction()
         };
         Affine::translate(axis.pack(x, 0.))
     }
 
-    pub fn selected_transform(&self, axis: Axis,  main: f64) ->Affine{
+    pub fn selected_transform(&self, axis: Axis, main: f64) -> Affine {
         let x = if self.increasing {
             main * (1.0 - self.fraction())
-        }else {
+        } else {
             -main * (1.0 - self.fraction())
         };
         Affine::translate(axis.pack(x, 0.))
@@ -278,12 +284,16 @@ impl TabsTransition {
 pub struct TabsBody<T> {
     children: Vec<TabBodyPod<T>>,
     transition: Option<TabsTransition>,
-    axis: Axis
+    axis: Axis,
 }
 
 impl<T> TabsBody<T> {
-    pub fn new(axis : Axis) -> TabsBody<T> {
-        TabsBody { children: vec![], transition: None, axis }
+    pub fn new(axis: Axis) -> TabsBody<T> {
+        TabsBody {
+            children: vec![],
+            transition: None,
+            axis,
+        }
     }
 
     pub fn with_child(mut self, child: impl Widget<T> + 'static) -> TabsBody<T> {
@@ -334,7 +344,6 @@ fn hidden_should_receive_lifecycle(lc: &LifeCycle) -> bool {
     }
 }
 
-
 impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut TabsState<T>, env: &Env) {
         if hidden_should_receive_event(event) {
@@ -366,8 +375,7 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
             trans.current_time += *interval;
             if trans.live() {
                 ctx.request_anim_frame();
-
-            }else{
+            } else {
                 self.transition = None;
             }
         }
@@ -381,7 +389,11 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
         env: &Env,
     ) {
         if _old_data.selected != data.selected {
-            self.transition = Some(TabsTransition::new(_old_data.selected, 250 * MILLIS, _old_data.selected < data.selected));
+            self.transition = Some(TabsTransition::new(
+                _old_data.selected,
+                250 * MILLIS,
+                _old_data.selected < data.selected,
+            ));
             ctx.request_layout();
             ctx.request_anim_frame();
         }
@@ -409,18 +421,16 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<T>, env: &Env) {
-
-        if let Some(trans) = &self.transition{
+        if let Some(trans) = &self.transition {
             let axis = self.axis;
             let size = ctx.size();
             let major = axis.major(size);
-            ctx.clip(Rect::from_origin_size (Point::ZERO, size));
+            ctx.clip(Rect::from_origin_size(Point::ZERO, size));
 
             let children = &mut self.children;
             if let Some(ref mut prev) = children.get_mut(trans.previous_idx) {
                 ctx.with_save(|ctx| {
-
-                    ctx.transform( trans.previous_transform(axis, major) );
+                    ctx.transform(trans.previous_transform(axis, major));
                     prev.paint_raw(ctx, &data.inner, env);
                 })
             }
@@ -430,7 +440,7 @@ impl<T: Data> Widget<TabsState<T>> for TabsBody<T> {
                     child.paint_raw(ctx, &data.inner, env);
                 })
             }
-        }else {
+        } else {
             if let Some(ref mut child) = self.children.get_mut(data.selected) {
                 child.paint_raw(ctx, &data.inner, env);
             }
@@ -479,20 +489,25 @@ pub enum TabOrientation {
 }
 
 impl TabOrientation {
-    pub fn rotate_and_box<W: Widget<T> + 'static, T: Data>(self, widget: W, axis: Axis, cross: CrossAxisAlignment) ->Box<dyn Widget<T>>{
+    pub fn rotate_and_box<W: Widget<T> + 'static, T: Data>(
+        self,
+        widget: W,
+        axis: Axis,
+        cross: CrossAxisAlignment,
+    ) -> Box<dyn Widget<T>> {
         let turns = match self {
-            Self::Standard => match (axis, cross){
-                (Axis::Horizontal, _)=>0,
-                (Axis::Vertical, CrossAxisAlignment::Start)=>3,
-                (Axis::Vertical, _ )=>1
-            }
+            Self::Standard => match (axis, cross) {
+                (Axis::Horizontal, _) => 0,
+                (Axis::Vertical, CrossAxisAlignment::Start) => 3,
+                (Axis::Vertical, _) => 1,
+            },
             Self::Turns(turns) => turns,
         };
 
         if turns == 0 {
             Box::new(widget)
         } else {
-            Box::new( widget.rotate(turns) )
+            Box::new(widget.rotate(turns))
         }
     }
 }

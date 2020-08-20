@@ -79,6 +79,7 @@ pub use painter::{BackgroundBrush, Painter};
 pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
+pub use rotated::Rotated;
 pub use scope::{DefaultScopePolicy, Scope, ScopePolicy};
 pub use scroll::{Scroll, ScrollTo, ScrollToProperty, SCROLL_TO};
 pub use sized_box::SizedBox;
@@ -90,8 +91,7 @@ pub use stepper::Stepper;
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
 #[cfg(feature = "im")]
-pub use tabs::{Tabs, TabsBody, TabsState, TabOrientation};
-pub use rotated::Rotated;
+pub use tabs::{TabOrientation, Tabs, TabsBody, TabsState};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]

@@ -1,21 +1,28 @@
-use crate::{Size, Widget, EventCtx, Event, Env, LifeCycleCtx, LifeCycle, UpdateCtx, LayoutCtx, BoxConstraints, PaintCtx, Affine, Vec2, MouseEvent, RenderContext};
+use crate::event::Event::{MouseDown, MouseMove, MouseUp, Wheel};
+use crate::{
+    Affine, BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent,
+    PaintCtx, RenderContext, Size, UpdateCtx, Vec2, Widget,
+};
 use std::f64::consts::PI;
-use crate::event::Event::{MouseMove, MouseDown, MouseUp, Wheel};
 
-pub struct Rotated<W>{
+pub struct Rotated<W> {
     child: W,
     quarter_turns: u8,
-    transforms : Option<(Affine, Affine)>
+    transforms: Option<(Affine, Affine)>,
 }
 
 impl<W> Rotated<W> {
     pub fn new(child: W, quarter_turns: u8) -> Self {
-        Rotated { child, quarter_turns, transforms: None }
+        Rotated {
+            child,
+            quarter_turns,
+            transforms: None,
+        }
     }
 }
 
-impl <W> Rotated<W>{
-    fn flip(&self, size: Size)->Size {
+impl<W> Rotated<W> {
+    fn flip(&self, size: Size) -> Size {
         if self.quarter_turns % 2 == 0 {
             size
         } else {
@@ -26,9 +33,9 @@ impl <W> Rotated<W>{
     fn affine(&self, child_size: Size, my_size: Size) -> Affine {
         let a = ((self.quarter_turns % 4) as f64) * PI / 2.0;
 
-        Affine::translate(Vec2::new(my_size.width / 2., my_size.height / 2.)) *
-            Affine::rotate(a) *
-            Affine::translate(Vec2::new(-child_size.width / 2., -child_size.height / 2.))
+        Affine::translate(Vec2::new(my_size.width / 2., my_size.height / 2.))
+            * Affine::rotate(a)
+            * Affine::translate(Vec2::new(-child_size.width / 2., -child_size.height / 2.))
     }
 
     fn translate_mouse_event(&self, inverse: Affine, me: &MouseEvent) -> MouseEvent {
@@ -38,24 +45,36 @@ impl <W> Rotated<W>{
     }
 }
 
-impl <T, W: Widget<T> > Widget<T> for Rotated<W>{
+impl<T, W: Widget<T>> Widget<T> for Rotated<W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        if let Some( (transform, inverse) ) = self.transforms {
+        if let Some((transform, inverse)) = self.transforms {
             ctx.widget_state.invalid.transform_by(inverse);
             match event {
-                MouseMove(me) => {
-                    self.child.event(ctx, &Event::MouseMove(self.translate_mouse_event(inverse, me)), data, env)
-                },
-                MouseDown(me) => {
-                    self.child.event(ctx, &Event::MouseDown(self.translate_mouse_event(inverse, me)), data, env)
-                },
-                MouseUp(me) => {
-                    self.child.event(ctx, &Event::MouseUp(self.translate_mouse_event(inverse, me)), data, env)
-                },
-                Wheel(me) => {
-                    self.child.event(ctx, &Event::Wheel(self.translate_mouse_event(inverse, me)), data, env)
-                }
-                _ => self.child.event(ctx, event, data, env)
+                MouseMove(me) => self.child.event(
+                    ctx,
+                    &Event::MouseMove(self.translate_mouse_event(inverse, me)),
+                    data,
+                    env,
+                ),
+                MouseDown(me) => self.child.event(
+                    ctx,
+                    &Event::MouseDown(self.translate_mouse_event(inverse, me)),
+                    data,
+                    env,
+                ),
+                MouseUp(me) => self.child.event(
+                    ctx,
+                    &Event::MouseUp(self.translate_mouse_event(inverse, me)),
+                    data,
+                    env,
+                ),
+                Wheel(me) => self.child.event(
+                    ctx,
+                    &Event::Wheel(self.translate_mouse_event(inverse, me)),
+                    data,
+                    env,
+                ),
+                _ => self.child.event(ctx, event, data, env),
             }
             ctx.widget_state.invalid.transform_by(transform);
         }
@@ -70,20 +89,17 @@ impl <T, W: Widget<T> > Widget<T> for Rotated<W>{
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
-        let bc = BoxConstraints::new(
-            self.flip(bc.min()),
-            self.flip(bc.max())
-        );
+        let bc = BoxConstraints::new(self.flip(bc.min()), self.flip(bc.max()));
 
         let child_size = self.child.layout(ctx, &bc, data, env);
         let flipped_size = self.flip(child_size);
         let transform = self.affine(child_size, flipped_size);
-        self.transforms = Some( (transform, transform.inverse()) );
+        self.transforms = Some((transform, transform.inverse()));
         flipped_size
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        if let Some( (transform, inverse) ) = self.transforms {
+        if let Some((transform, inverse)) = self.transforms {
             ctx.region.transform_by(inverse);
             ctx.with_save(|ctx| {
                 ctx.transform(transform);
@@ -93,5 +109,3 @@ impl <T, W: Widget<T> > Widget<T> for Rotated<W>{
         }
     }
 }
-
-
