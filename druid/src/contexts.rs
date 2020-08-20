@@ -25,10 +25,9 @@ use crate::piet::Piet;
 use crate::piet::RenderContext;
 use crate::{
     commands, Affine, Command, ContextMenu, Cursor, Insets, MenuDesc, Point, Rect, SingleUse, Size,
-    Target, Text, TimerToken, Vec2, WidgetId, WindowDesc, WindowHandle, WindowId,
+    SubWindowRequirement, Target, Text, TimerToken, Vec2, WidgetId, WindowDesc, WindowHandle,
+    WindowId,
 };
-
-use crate::widget::SubWindowRequirement;
 
 /// A macro for implementing methods on multiple contexts.
 ///

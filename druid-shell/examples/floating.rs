@@ -18,7 +18,10 @@ use std::collections::HashMap;
 use druid_shell::kurbo::{Line, Point, Rect, Size};
 use druid_shell::piet::{Color, RenderContext};
 
-use druid_shell::{Application, Cursor, FileDialogOptions, FileSpec, HotKey, KbKey, KeyEvent, Menu, MouseEvent, Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowState};
+use druid_shell::{
+    Application, Cursor, FileDialogOptions, FileSpec, HotKey, KbKey, KeyEvent, Menu, MouseEvent,
+    Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowState,
+};
 use piet_common::Piet;
 use std::time::Duration;
 

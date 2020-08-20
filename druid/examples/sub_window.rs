@@ -14,9 +14,7 @@
 
 use druid::commands::CLOSE_WINDOW;
 use druid::lens::UnitLens;
-use druid::widget::{
-    Align, Button, Controller, ControllerHost, Flex, Label, SubWindowRequirement, TextBox,
-};
+use druid::widget::{Align, Button, Controller, ControllerHost, Flex, Label, TextBox, SubWindowHost};
 use druid::{
     theme, Affine, AppLauncher, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, Lens,
     LensExt, LifeCycle, LifeCycleCtx, LocalizedString, PaintCtx, Point, Rect, RenderContext, Size,
@@ -136,7 +134,7 @@ impl<T, W: Widget<T>> Controller<T, W> for TooltipController {
                             window_pos: *window_pos,
                         })
                     } else {
-                        let req = SubWindowRequirement::new(
+                        let req = SubWindowHost::make_requirement(
                             ctx.widget_id(),
                             WindowConfig::default()
                                 .show_titlebar(false)
@@ -333,7 +331,7 @@ fn build_root_widget() -> impl Widget<HelloState> {
             let tb = TextBox::new().lens(SubState::my_stuff);
             let drag_thing = Label::new("Drag me").controller(DragWindowController::new());
             let col = Flex::column().with_child(drag_thing).with_child(tb);
-            let req = SubWindowRequirement::new(
+            let req = SubWindowHost::make_requirement(
                 ctx.widget_id(),
                 WindowConfig::default()
                     .show_titlebar(false)

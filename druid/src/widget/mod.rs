@@ -76,7 +76,7 @@ pub use slider::Slider;
 pub use spinner::Spinner;
 pub use split::Split;
 pub use stepper::Stepper;
-pub use sub_window::{SubWindowHost, SubWindowRequirement};
+pub use sub_window::SubWindowHost;
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;

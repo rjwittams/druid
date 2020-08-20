@@ -64,7 +64,7 @@ pub use screen::Monitor;
 pub use screen::Screen;
 pub use window::{
     IdleHandle, IdleToken, Text, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowLevel,
-    WindowState
+    WindowState,
 };
 
 pub use keyboard_types;

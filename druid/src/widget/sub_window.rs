@@ -1,51 +1,12 @@
-use crate::app::{PendingWindow, WindowConfig};
+use crate::app::WindowConfig;
 use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
 use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
-use crate::lens::UnitLens;
-use crate::win_handler::AppState;
 use crate::{
     BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
-    Point, Rect, Size, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod, WindowHandle, WindowId,
+    Point, Rect, Size, SubWindowRequirement, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
+    WindowId,
 };
-use druid_shell::Error;
 use std::ops::Deref;
-
-// We have to have no generics, as both ends would need to know them.
-// So we erase everything to ()
-pub struct SubWindowRequirement {
-    pub(crate) host_id: Option<WidgetId>, // Present if updates should be sent from the pod to the sub window.
-    pub(crate) sub_window_host: Box<dyn Widget<()>>,
-    pub(crate) window_config: WindowConfig,
-    pub window_id: WindowId,
-}
-
-impl SubWindowRequirement {
-    pub fn new<U: Data, W: Widget<U> + 'static>(
-        parent_id: WidgetId,
-        window_config: WindowConfig,
-        sync: bool,
-        widget: W,
-        data: U,
-    ) -> Self {
-        let host_id = WidgetId::next();
-        let sub_window_host = SubWindowHost::new(host_id, parent_id, sync, data, widget).boxed();
-        SubWindowRequirement {
-            host_id: if sync { Some(host_id) } else { None },
-            sub_window_host,
-            window_config,
-            window_id: WindowId::next(),
-        }
-    }
-
-    pub(crate) fn make_sub_window<T: Data>(
-        self,
-        app_state: &mut AppState<T>,
-    ) -> Result<WindowHandle, Error> {
-        let pending =
-            PendingWindow::new_from_boxed(self.sub_window_host.lens(UnitLens::default()).boxed());
-        app_state.build_native_window(self.window_id, pending, self.window_config)
-    }
-}
 
 pub struct SubWindowHost<U, W: Widget<U>> {
     id: WidgetId,
@@ -63,6 +24,27 @@ impl<U, W: Widget<U>> SubWindowHost<U, W> {
             sync,
             data,
             child: WidgetPod::new(widget),
+        }
+    }
+
+    pub fn make_requirement(
+        parent_id: WidgetId,
+        window_config: WindowConfig,
+        sync: bool,
+        widget: W,
+        data: U,
+    ) -> SubWindowRequirement
+    where
+        W: 'static,
+        U: Data,
+    {
+        let host_id = WidgetId::next();
+        let sub_window_host = SubWindowHost::new(host_id, parent_id, sync, data, widget).boxed();
+        SubWindowRequirement {
+            host_id: if sync { Some(host_id) } else { None },
+            sub_window_root: sub_window_host,
+            window_config,
+            window_id: WindowId::next(),
         }
     }
 }
