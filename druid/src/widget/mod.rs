@@ -91,7 +91,7 @@ pub use stepper::Stepper;
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
 #[cfg(feature = "im")]
-pub use tabs::{TabOrientation, Tabs, TabsBody, TabsState, TabsFromData, InitialTab, TabSet, TabKey, TabBodyPod, StaticTabs};
+pub use tabs::{TabOrientation, Tabs, TabsBody, TabsState, TabsFromData, InitialTab, TabBodyPod, StaticTabs};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]

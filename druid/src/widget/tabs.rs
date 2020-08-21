@@ -34,20 +34,20 @@ use TabsContent::*;
 use std::rc::Rc;
 use std::collections::HashMap;
 use std::cell::{RefCell};
+use std::hash::Hash;
+use std::fmt::Debug;
 
 const MILLIS: u64 = 1_000_000; // Number of nanos
 
-#[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq)]
-pub struct TabSet(pub usize);
-#[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
-pub struct TabKey(pub usize);
-
 pub trait TabsFromData<T>: Clone + 'static{
-    fn initial_tabs(&self, data: &T)->TabSet;
-    fn tabs_changed(&self, old_data: &T, data: &T)->Option<TabSet>;
-    fn keys_from_set(&self, set: TabSet)->Vec<TabKey>;
-    fn name_from_key(&self, key: TabKey)->String;
-    fn body_from_key(&self, key: TabKey)->Option<TabBodyPod<T>>;
+    type TabSet;
+    type TabKey: Hash + Eq + Clone + Debug;
+
+    fn initial_tabs(&self, data: &T)->Self::TabSet;
+    fn tabs_changed(&self, old_data: &T, data: &T)->Option<Self::TabSet>;
+    fn keys_from_set(&self, set: Self::TabSet)->Vec<Self::TabKey>;
+    fn name_from_key(&self, key: Self::TabKey)->String;
+    fn body_from_key(&self, key: Self::TabKey)->Option<TabBodyPod<T>>;
 }
 
 #[derive(Clone)]
@@ -61,23 +61,32 @@ impl<T> StaticTabs<T> {
     }
 }
 
+#[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq)]
+pub struct STabSet;
+#[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
+pub struct STabKey(pub usize);
+
 impl <T: Data> TabsFromData<T> for StaticTabs<T>{
-    fn initial_tabs(&self, data: &T) -> TabSet {
-        TabSet(0)
+    type TabSet = STabSet;
+    type TabKey = STabKey;
+
+    fn initial_tabs(&self, _data: &T) -> Self::TabSet {
+        STabSet
     }
 
-    fn tabs_changed(&self, old_data: &T, data: &T) -> Option<TabSet> {
+    fn tabs_changed(&self, _old_data: &T, _data: &T) -> Option<Self::TabSet> {
         None
     }
 
-    fn keys_from_set(&self, set: TabSet) -> Vec<TabKey> {
-        (0..self.tabs.borrow().len()).map(TabKey).collect()
+    fn keys_from_set(&self, _set: Self::TabSet) -> Vec<Self::TabKey> {
+        (0..self.tabs.borrow().len()).map(STabKey).collect()
     }
 
-    fn name_from_key(&self, key: TabKey) -> String {
+    fn name_from_key(&self, key: Self::TabKey) -> String {
         self.tabs.borrow()[key.0].name.clone()
     }
-    fn body_from_key(&self, key: TabKey) -> Option<TabBodyPod<T>> {
+
+    fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<T>> {
         self.tabs.borrow()[key.0].child.take()
     }
 }
@@ -115,11 +124,11 @@ impl<T: Data, TFD: TabsFromData<T>> TabsState<T, TFD> {
     }
 }
 
-pub struct TabBar<T, TFD> {
+pub struct TabBar<T, TFD: TabsFromData<T>> {
     axis: Axis,
     cross: CrossAxisAlignment,
     orientation: TabOrientation,
-    tabs: Vec<(TabKey, TabBarPod)>,
+    tabs: Vec<(TFD::TabKey, TabBarPod)>,
     hot: Option<TabIndex>,
     phantom_t: PhantomData<T>,
     phantom_tfd: PhantomData<TFD>
@@ -155,7 +164,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
         }
     }
 
-    fn ensure_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TabSet) {
+    fn ensure_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) {
         // Borrow checker fun
         let (orientation, axis, cross) = (self.orientation, self.axis, self.cross);
         let rotate = |w| orientation.rotate_and_box(w, axis, cross);
@@ -348,22 +357,23 @@ impl TabsTransition {
     }
 }
 
-fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(contents: &mut Vec<(TabKey, Content)>, tfd: &TFD, tab_set: TabSet, f: impl Fn(&TFD, TabKey, usize)->Content){
-    let mut existing_by_key: HashMap<TabKey, Content> =
+fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(contents: &mut Vec<(TFD::TabKey, Content)>,
+                                                              tfd: &TFD, tab_set: TFD::TabSet, f: impl Fn(&TFD, TFD::TabKey, usize)->Content){
+    let mut existing_by_key: HashMap<TFD::TabKey, Content> =
         contents.drain(..).collect();
 
     for (idx, key) in tfd.keys_from_set(tab_set).into_iter().enumerate() {
         let next = if let Some(child) = existing_by_key.remove(&key){
            child
         }else {
-            f(&tfd, key, idx)
+            f(&tfd, key.clone(), idx)
         };
-        contents.push((key, next))
+        contents.push((key.clone(), next))
     }
 }
 
-pub struct TabsBody<T, TFD> {
-    children: Vec<(TabKey, TabBodyPod<T>)>,
+pub struct TabsBody<T, TFD: TabsFromData<T>> {
+    children: Vec<(TFD::TabKey, TabBodyPod<T>)>,
     transition: Option<TabsTransition>,
     axis: Axis,
     phantom_tfd: PhantomData<TFD>
@@ -379,20 +389,20 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
         }
     }
 
-    fn make_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TabSet) {
+    fn make_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) {
         ensure_for_tabs(&mut self.children, &data.tabs_from_data, tab_set, |tfd, key, idx|{
-            if let Some(body) = data.tabs_from_data.body_from_key(key) {
+            if let Some(body) = data.tabs_from_data.body_from_key(key.clone()) {
                 body
             } else {
                 // Make a dummy body
-                WidgetPod::<T, Box<dyn Widget<T>>>::new(Box::new(Label::new(format!("Could not create tab for key {} at index {}", key.0, idx))))
+                WidgetPod::<T, Box<dyn Widget<T>>>::new(Box::new(Label::new(format!("Could not create tab for key {:?} at index {}", key, idx))))
             }
         });
     }
 }
 
 impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
-    fn active(&mut self, state: &TabsState<T, TFD>) -> Option<&mut (TabKey, TabBodyPod<T>)> {
+    fn active(&mut self, state: &TabsState<T, TFD>) -> Option<&mut (TFD::TabKey, TabBodyPod<T>)> {
         self.children.get_mut(state.selected)
     }
 }
