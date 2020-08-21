@@ -1,6 +1,9 @@
-use crate::{BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx, Size, UpdateCtx, Widget, WidgetPod};
+use crate::kurbo::{Point, Rect};
+use crate::{
+    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, Lens, LifeCycle, LifeCycleCtx, PaintCtx,
+    Size, UpdateCtx, Widget, WidgetPod,
+};
 use std::marker::PhantomData;
-use crate::kurbo::{Rect, Point};
 
 pub trait ScopePolicy {
     type In: Data;
@@ -58,7 +61,6 @@ impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> ScopePolicy
     }
 }
 
-
 pub struct Scope<SP: ScopePolicy, W: Widget<SP::State>> {
     scope_policy: SP,
     state: Option<SP::State>,
@@ -83,12 +85,20 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
         }
     }
 
-    fn with_state<V>(&mut self, data: &SP::In, mut f: impl FnMut(&SP::State, &mut WidgetPod<SP::State, W>) -> V) -> V {
+    fn with_state<V>(
+        &mut self,
+        data: &SP::In,
+        mut f: impl FnMut(&SP::State, &mut WidgetPod<SP::State, W>) -> V,
+    ) -> V {
         self.ensure_state(data);
         f(self.state.as_ref().unwrap(), &mut self.inner)
     }
 
-    fn with_state_mut<V>(&mut self, data: &SP::In, mut f: impl FnMut(&mut SP::State, &mut WidgetPod<SP::State, W>) -> V) -> V {
+    fn with_state_mut<V>(
+        &mut self,
+        data: &SP::In,
+        mut f: impl FnMut(&mut SP::State, &mut WidgetPod<SP::State, W>) -> V,
+    ) -> V {
         self.ensure_state(data);
         f(self.state.as_mut().unwrap(), &mut self.inner)
     }

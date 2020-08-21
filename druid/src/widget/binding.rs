@@ -493,13 +493,14 @@ impl<
         }
     }
 
-    fn check_for_changes(&mut self, data: &T, env: &Env) {
+    fn check_for_changes(&mut self, data: &T, env: &Env)-> bool {
         self.binding.append_change_required(
             self.contained.bindable(),
             data,
             &mut self.pending_change,
             env,
         );
+        self.pending_change.is_some()
     }
 }
 
@@ -526,15 +527,15 @@ impl<
         };
 
         // Changes that occurred just now
-        self.check_for_changes(data, env);
-        self.apply_pending_changes(ctx, data, env);
+        if self.check_for_changes(data, env) {
+            self.apply_pending_changes(ctx, data, env);
+        }
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
         self.contained.lifecycle(ctx, event, data, env);
-        self.check_for_changes(data, env);
         // This can't be factored out as there is no common trait between contexts
-        if self.pending_change.is_some() {
+        if self.check_for_changes(data, env) {
             ctx.submit_command(APPLY_BINDINGS, ctx.widget_state.id);
         }
     }
@@ -545,16 +546,14 @@ impl<
                 .apply_data_to_controlled(data, self.contained.bindable_mut(), ctx, env);
         }
         self.contained.update(ctx, old_data, data, env);
-        self.check_for_changes(data, env);
-        if self.pending_change.is_some() {
+        if self.check_for_changes(data, env) {
             ctx.submit_command(APPLY_BINDINGS, ctx.widget_state.id);
         }
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         let size = self.contained.layout(ctx, bc, data, env);
-        self.check_for_changes(data, env);
-        if self.pending_change.is_some() {
+        if self.check_for_changes(data, env) {
             ctx.submit_command(APPLY_BINDINGS, ctx.widget_state.id);
         }
         size

@@ -1,8 +1,5 @@
-use druid::widget::{
-    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
-    SizedBox, TabOrientation, Tabs, ViewSwitcher,
-};
-use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc};
+use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, TabOrientation, Tabs, ViewSwitcher, TabsFromData, InitialTab, TabSet, TabKey, TabBodyPod, StaticTabs};
+use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc, WidgetPod};
 
 #[derive(Data, Clone)]
 struct Basic {}
@@ -40,7 +37,7 @@ pub fn main() {
             rotation: TabOrientation::Standard,
         },
         basic: Basic {},
-        advanced: Advanced { number: 13 },
+        advanced: Advanced { number: 2 },
     };
 
     // start the application
@@ -108,7 +105,42 @@ fn build_root_widget() -> impl Widget<AppState> {
     Flex::row().with_child(sidebar).with_flex_child(vs, 1.0)
 }
 
+struct NumberedTabs;
+
+impl TabsFromData<Advanced> for NumberedTabs{
+    fn initial_tabs(&self, data: &Advanced) -> TabSet {
+        TabSet(data.number)
+    }
+
+    fn tabs_changed(&self, old_data: &Advanced, data: &Advanced) -> Option<TabSet> {
+        if old_data.number != data.number {
+            Some(TabSet(data.number))
+        } else{
+            None
+        }
+    }
+
+    fn keys_from_set(&self, set: TabSet) -> Vec<TabKey> {
+        (0..set.0).map( TabKey ).collect()
+    }
+
+    fn name_from_key(&self, key: TabKey) -> String {
+        format!("Dynamic tab {:?}", key.0)
+    }
+
+    fn body_from_key(&self, key: TabKey) -> Option<TabBodyPod<Advanced>> {
+        Some(WidgetPod::new( Label::new( format!("Dynamic tab body {:?}", key.0) ).boxed()))
+    }
+}
+
 fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
+    let dyn_tabs = Tabs::new()
+        .with_axis(tab_config.axis)
+        .with_cross_axis_alignment(tab_config.cross)
+        .with_rotation(tab_config.rotation)
+        .with_tabs(NumberedTabs).lens(AppState::advanced);
+
+
     let adv = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(Label::new("More involved!"))
@@ -120,9 +152,11 @@ fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
         .with_child(Label::new(|adv: &Advanced, _e: &Env| {
             format!("My number is {}", adv.number)
         }))
+        .with_spacer(20.)
+       // .with_flex_child(dyn_tabs, 1.)
         .lens(AppState::advanced);
 
-    Tabs::new()
+    let main_tabs =  Tabs::new()
         .with_axis(tab_config.axis)
         .with_cross_axis_alignment(tab_config.cross)
         .with_rotation(tab_config.rotation)
@@ -132,5 +166,10 @@ fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
         .with_tab("Page 4", Label::new("Basic kind of stuff"))
         .with_tab("Page 5", Label::new("Basic kind of stuff"))
         .with_tab("Page 6", Label::new("Basic kind of stuff"))
-        .with_tab("Page 7", Label::new("Basic kind of stuff"))
+        .with_tab("Page 7", Label::new("Basic kind of stuff"));
+
+   let col = Flex::column()
+       .with_flex_child( main_tabs ,0.5)
+       .with_flex_child( dyn_tabs, 0.5 );
+    col
 }
