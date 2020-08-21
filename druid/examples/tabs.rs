@@ -105,6 +105,7 @@ fn build_root_widget() -> impl Widget<AppState> {
     Flex::row().with_child(sidebar).with_flex_child(vs, 1.0)
 }
 
+#[derive(Clone)]
 struct NumberedTabs;
 
 impl TabsFromData<Advanced> for NumberedTabs{
