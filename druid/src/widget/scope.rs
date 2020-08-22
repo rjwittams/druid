@@ -19,40 +19,46 @@ pub trait ScopeTransfer {
     type State: Data;
 
     // Replace the input we have with a new one from outside
-    fn replace_in_state(&self, state: &mut Self::State, inner: &Self::In);
+    fn read_input(&self, state: &mut Self::State, inner: &Self::In);
     // Take the modifications we have made and write them back
     // to our input.
     fn write_back_input(&self, state: &Self::State, inner: &mut Self::In);
 }
 
-pub struct DefaultScopePolicy<F: Fn(In) -> State, L: Lens<State, In>, In, State> {
+pub struct DefaultScopePolicy<F: Fn(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer> {
     make_state: F,
-    lens: L,
-    phantom_in: PhantomData<In>,
-    phantom_state: PhantomData<State>,
+    transfer: Transfer,
 }
 
-impl<F: Fn(In) -> State, L: Lens<State, In>, In, State> DefaultScopePolicy<F, L, In, State> {
-    pub fn new(make_state: F, lens: L) -> Self {
+impl<F: Fn(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer>
+    DefaultScopePolicy<F, Transfer>
+{
+    pub fn new(make_state: F, transfer: Transfer) -> Self {
         DefaultScopePolicy {
             make_state,
-            lens,
-            phantom_in: Default::default(),
-            phantom_state: Default::default(),
+            transfer,
         }
     }
 }
 
-impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data> ScopePolicy
-    for DefaultScopePolicy<F, L, In, State>
+impl<F: Fn(In) -> State, L: Lens<State, In>, In: Data, State: Data>
+    DefaultScopePolicy<F, LensScopeTransfer<L, In, State>>
 {
-    type In = In;
-    type State = State;
-    type Transfer = LensScopeTransfer<L, In, State>;
+    pub fn for_lens(make_state: F, lens: L) -> Self {
+        Self::new(make_state, LensScopeTransfer::new(lens))
+    }
+}
 
-    fn create(self, inner: &In) -> (State, Self::Transfer) {
+impl<F: Fn(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer> ScopePolicy
+    for DefaultScopePolicy<F, Transfer>
+{
+    type In = Transfer::In;
+    type State = Transfer::State;
+    type Transfer = Transfer;
+
+    fn create(self, inner: &Self::In) -> (Self::State, Self::Transfer) {
         let state = (self.make_state)(inner.clone());
-        (state, LensScopeTransfer::new(self.lens))
+        (state, self.transfer)
     }
 }
 
@@ -76,7 +82,7 @@ impl<L: Lens<State, In>, In: Data, State: Data> ScopeTransfer for LensScopeTrans
     type In = In;
     type State = State;
 
-    fn replace_in_state(&self, state: &mut State, data: &In) {
+    fn read_input(&self, state: &mut State, data: &In) {
         self.lens.with_mut(state, |inner| {
             if !inner.same(&data) {
                 *inner = data.clone()
@@ -94,12 +100,12 @@ impl<L: Lens<State, In>, In: Data, State: Data> ScopeTransfer for LensScopeTrans
 }
 
 enum ScopeContent<SP: ScopePolicy> {
-    Building {
-        factory: Option<SP>,
+    Policy {
+        policy: Option<SP>
     },
-    Running {
+    Transfer {
         state: SP::State,
-        policy: SP::Transfer,
+        transfer: SP::Transfer,
     },
 }
 
@@ -110,10 +116,10 @@ pub struct Scope<SP: ScopePolicy, W: Widget<SP::State>> {
 }
 
 impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
-    pub fn new(factory: SP, inner: W) -> Self {
+    pub fn new(policy: SP, inner: W) -> Self {
         Scope {
-            content: ScopeContent::Building {
-                factory: Some(factory),
+            content: ScopeContent::Policy {
+                policy: Some(policy),
             },
             inner: WidgetPod::new(inner),
             widget_added: false,
@@ -126,24 +132,33 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
         mut f: impl FnMut(&mut SP::State, &mut WidgetPod<SP::State, W>) -> V,
     ) -> V {
         match &mut self.content {
-            ScopeContent::Running {
-                ref mut state,
-                policy,
-            } => {
-                policy.replace_in_state(state, data);
-                f(state, &mut self.inner)
-            }
-            ScopeContent::Building { factory } => {
-                let (mut state, policy) = factory.take().unwrap().create(data);
+            ScopeContent::Policy { policy } => {
+                // We know that the policy is a Some - it is an option to allow
+                // us to take ownership before replacing the content.
+                let (mut state, policy) = policy.take().unwrap().create(data);
                 let v = f(&mut state, &mut self.inner);
-                self.content = ScopeContent::Running { state, policy };
+                self.content = ScopeContent::Transfer {
+                    state,
+                    transfer: policy,
+                };
                 v
+            }
+            ScopeContent::Transfer {
+                ref mut state,
+                transfer: policy,
+            } => {
+                policy.read_input(state, data);
+                f(state, &mut self.inner)
             }
         }
     }
 
     fn write_back_input(&mut self, data: &mut SP::In) {
-        if let ScopeContent::Running { state, policy } = &mut self.content {
+        if let ScopeContent::Transfer {
+            state,
+            transfer: policy,
+        } = &mut self.content
+        {
             policy.write_back_input(state, data)
         }
     }
@@ -156,7 +171,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
             self.write_back_input(data);
             ctx.request_update()
         } else {
-            log::info!("Scope dropping event {:?}", event);
+            log::warn!("Scope dropping event (widget not added) {:?}", event);
         }
     }
 

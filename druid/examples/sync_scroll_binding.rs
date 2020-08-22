@@ -125,7 +125,7 @@ fn build_widget() -> impl Widget<OuterState> {
         .with_child(TextBox::new().lens(OuterState::job));
 
     let scope = Scope::new(
-        DefaultScopePolicy::new(
+        DefaultScopePolicy::for_lens(
             InnerState::new,  // How to construct the inner state from its input
             InnerState::text, // How to extract the input back out of the inner state
         ),

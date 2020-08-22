@@ -24,7 +24,10 @@ use std::rc::Rc;
 use crate::kurbo::Line;
 use crate::piet::RenderContext;
 
-use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope, ScopePolicy};
+use crate::widget::{
+    Axis, CrossAxisAlignment, DefaultScopePolicy, Flex, Label, LensScopeTransfer, Scope,
+    ScopePolicy,
+};
 use crate::{
     theme, Affine, BoxConstraints, Color, Data, Env, Event, EventCtx, Insets, LayoutCtx, Lens,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, SingleUse, Size, UpdateCtx, Widget, WidgetExt,
@@ -613,6 +616,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
     }
 }
 
+// This only needs to exist to be able to give a reasonable type to the TabScope
 pub struct TabsScopePolicy<T, TFD> {
     tabs_from_data: TFD,
     selected: TabIndex,
@@ -635,8 +639,10 @@ impl<T: Data, TFD: TabsFromData<T>> ScopePolicy for TabsScopePolicy<T, TFD> {
     type Transfer = LensScopeTransfer<tabs_state_derived_lenses::inner, T, Self::State>;
 
     fn create(self, inner: &Self::In) -> (Self::State, Self::Transfer) {
-        let state = TabsState::new(inner.clone(), self.selected, self.tabs_from_data);
-        (state, LensScopeTransfer::new(Self::State::inner))
+        (
+            TabsState::new(inner.clone(), self.selected, self.tabs_from_data),
+            LensScopeTransfer::new(Self::State::inner),
+        )
     }
 }
 
@@ -716,18 +722,18 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
             rotation: TabOrientation::Standard,
-            content
+            content,
         }
     }
 
-    pub fn of(tabs: TFD)->Self{
-        Self::with_content( TabsContent::Complete {tabs} )
+    pub fn of(tabs: TFD) -> Self {
+        Self::with_content(TabsContent::Complete { tabs })
     }
 
     pub fn building(tabs_from_data: TFD::Build) -> Self {
-        Self::with_content( TabsContent::Building {
-                tabs: tabs_from_data,
-            })
+        Self::with_content(TabsContent::Building {
+            tabs: tabs_from_data,
+        })
     }
 
     pub fn with_axis(mut self, axis: Axis) -> Self {
