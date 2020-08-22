@@ -15,7 +15,6 @@
 //! A widget that can switch between one of many views, hiding the inactive ones.
 //!
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -42,7 +41,12 @@ const MILLIS: u64 = 1_000_000; // Number of nanos
 pub trait TabsFromData<T>: Clone + 'static {
     type TabSet;
     type TabKey: Hash + Eq + Clone + Debug;
+    type Build; // This may only be useful for static tabs.
+                // It can be filled in with () until associated type defaults are stable
 
+    fn build(_build: Self::Build) -> Self {
+        unimplemented!()
+    }
     fn initial_tabs(&self, data: &T) -> Self::TabSet;
     fn tabs_changed(&self, old_data: &T, data: &T) -> Option<Self::TabSet>;
     fn keys_from_set(&self, set: Self::TabSet) -> Vec<Self::TabKey>;
@@ -53,29 +57,34 @@ pub trait TabsFromData<T>: Clone + 'static {
 #[derive(Clone)]
 pub struct StaticTabs<T> {
     // This needs be able to avoid cloning the widgets we are given -
-    // as such it is Rc. It is in a ref cell to allow adding tabs.
-    tabs: Rc<RefCell<Vec<InitialTab<T>>>>,
+    // as such it is Rc
+    tabs: Rc<Vec<InitialTab<T>>>,
 }
 
 impl<T> StaticTabs<T> {
     pub fn new() -> Self {
         StaticTabs {
-            tabs: Rc::new(RefCell::new(Vec::new())),
+            tabs: Rc::new(Vec::new()),
         }
     }
 }
 
-#[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq)]
-pub struct STabSet;
 #[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
 pub struct STabKey(pub usize);
 
 impl<T: Data> TabsFromData<T> for StaticTabs<T> {
-    type TabSet = STabSet;
+    type TabSet = ();
     type TabKey = STabKey;
+    type Build = Vec<InitialTab<T>>;
+
+    fn build(build: Self::Build) -> Self {
+        StaticTabs {
+            tabs: Rc::new(build),
+        }
+    }
 
     fn initial_tabs(&self, _data: &T) -> Self::TabSet {
-        STabSet
+        ()
     }
 
     fn tabs_changed(&self, _old_data: &T, _data: &T) -> Option<Self::TabSet> {
@@ -83,25 +92,25 @@ impl<T: Data> TabsFromData<T> for StaticTabs<T> {
     }
 
     fn keys_from_set(&self, _set: Self::TabSet) -> Vec<Self::TabKey> {
-        (0..self.tabs.borrow().len()).map(STabKey).collect()
+        (0..self.tabs.len()).map(STabKey).collect()
     }
 
     fn name_from_key(&self, key: Self::TabKey) -> String {
-        self.tabs.borrow()[key.0].name.clone()
+        self.tabs[key.0].name.clone()
     }
 
     fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<T>> {
-        self.tabs.borrow()[key.0].child.take()
+        self.tabs[key.0].child.take()
     }
 }
 
-pub trait AddTab<T> {
-    fn add_tab(&mut self, name: impl Into<String>, child: impl Widget<T> + 'static);
+pub trait AddTab<T>: TabsFromData<T> {
+    fn add_tab(tabs: &mut Self::Build, name: impl Into<String>, child: impl Widget<T> + 'static);
 }
 
 impl<T: Data> AddTab<T> for StaticTabs<T> {
-    fn add_tab(&mut self, name: impl Into<String>, child: impl Widget<T> + 'static) {
-        self.tabs.borrow_mut().push(InitialTab::new(name, child))
+    fn add_tab(tabs: &mut Self::Build, name: impl Into<String>, child: impl Widget<T> + 'static) {
+        tabs.push(InitialTab::new(name, child))
     }
 }
 
@@ -178,7 +187,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
             &data.tabs_from_data,
             tab_set,
             |tfd, key, _| {
-                let name = data.tabs_from_data.name_from_key(key);
+                let name = tfd.name_from_key(key);
                 let label = Label::<usize>::new(&name[..])
                     .with_font("Gill Sans".to_string())
                     .with_text_color(Color::WHITE)
@@ -379,17 +388,20 @@ fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(
     tfd: &TFD,
     tab_set: TFD::TabSet,
     f: impl Fn(&TFD, TFD::TabKey, usize) -> Content,
-) {
+) -> Vec<usize> {
     let mut existing_by_key: HashMap<TFD::TabKey, Content> = contents.drain(..).collect();
 
+    let mut existing_idx = Vec::new();
     for (idx, key) in tfd.keys_from_set(tab_set).into_iter().enumerate() {
         let next = if let Some(child) = existing_by_key.remove(&key) {
+            existing_idx.push(contents.len());
             child
         } else {
             f(&tfd, key.clone(), idx)
         };
         contents.push((key.clone(), next))
     }
+    existing_idx
 }
 
 pub struct TabsBody<T, TFD: TabsFromData<T>> {
@@ -409,13 +421,13 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
         }
     }
 
-    fn make_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) {
+    fn make_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) -> Vec<usize> {
         ensure_for_tabs(
             &mut self.children,
             &data.tabs_from_data,
             tab_set,
             |tfd, key, idx| {
-                if let Some(body) = data.tabs_from_data.body_from_key(key.clone()) {
+                if let Some(body) = tfd.body_from_key(key.clone()) {
                     body
                 } else {
                     // Make a dummy body
@@ -425,7 +437,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
                     ))))
                 }
             },
-        );
+        )
     }
 }
 
@@ -523,12 +535,13 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
         let changed_tabs = data
             .tabs_from_data
             .tabs_changed(&old_data.inner, &data.inner);
-        if let Some(tab_set) = changed_tabs {
-            // TODO diff key sets and only make new ones if required
-            self.make_tabs(data, tab_set);
+        let init = if let Some(tab_set) = changed_tabs {
             ctx.children_changed();
             ctx.request_layout();
-        }
+            Some(self.make_tabs(data, tab_set))
+        } else {
+            None
+        };
 
         if old_data.selected != data.selected {
             self.transition = Some(TabsTransition::new(
@@ -539,9 +552,18 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
             ctx.request_layout();
             ctx.request_anim_frame();
         }
-        // TODO make sure to only pass events to initialised children
-        for (_, child) in &mut self.children {
-            child.update(ctx, &data.inner, env);
+
+        // Make sure to only pass events to initialised children
+        if let Some(init) = init {
+            for idx in init {
+                if let Some((_, child)) = self.children.get_mut(idx) {
+                    child.update(ctx, &data.inner, env)
+                }
+            }
+        } else {
+            for (_, child) in &mut self.children {
+                child.update(ctx, &data.inner, env);
+            }
         }
     }
 
@@ -648,7 +670,7 @@ impl TabOrientation {
     }
 }
 
-struct InitialTab<T> {
+pub struct InitialTab<T> {
     name: String,
     child: SingleUse<TabBodyPod<T>>, // This is to avoid cloning provided tabs
 }
@@ -660,17 +682,13 @@ impl<T: 'static> InitialTab<T> {
             child: SingleUse::new(WidgetPod::new(Box::new(child))),
         }
     }
-
-    fn empty(name: String) -> Self {
-        InitialTab {
-            name,
-            child: SingleUse::empty(),
-        }
-    }
 }
 
-enum TabsContent<T: Data, TFD: TabsFromData<T>> {
+pub enum TabsContent<T: Data, TFD: TabsFromData<T>> {
     Building {
+        tabs: TFD::Build,
+    },
+    Complete {
         tabs: TFD,
     },
     Running {
@@ -688,20 +706,28 @@ pub struct Tabs<T: Data, TFD: TabsFromData<T> = StaticTabs<T>> {
 
 impl<T: Data> Tabs<T, StaticTabs<T>> {
     pub fn new() -> Self {
-        Tabs::of(StaticTabs::new())
+        Tabs::building(Vec::new())
     }
 }
 
 impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
-    pub fn of(tabs_from_data: TFD) -> Self {
+    pub fn with_content(content: TabsContent<T, TFD>) -> Self {
         Tabs {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
             rotation: TabOrientation::Standard,
-            content: TabsContent::Building {
-                tabs: tabs_from_data,
-            },
+            content
         }
+    }
+
+    pub fn of(tabs: TFD)->Self{
+        Self::with_content( TabsContent::Complete {tabs} )
+    }
+
+    pub fn building(tabs_from_data: TFD::Build) -> Self {
+        Self::with_content( TabsContent::Building {
+                tabs: tabs_from_data,
+            })
     }
 
     pub fn with_axis(mut self, axis: Axis) -> Self {
@@ -739,19 +765,18 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
             tabs: tabs_from_data,
         } = &mut self.content
         {
-            tabs_from_data.add_tab(name, child)
+            TFD::add_tab(tabs_from_data, name, child)
         } else {
-            // This is doable through dynamic tabs, and would need some kind of version on the tabs from data
-            log::warn!("Can't add static tabs to a running tabs instance!")
+            log::warn!("Can't add static tabs to a running or complete tabs instance!")
         }
     }
 
-    pub fn with_tabs<TabsFromD: TabsFromData<T>>(mut self, tabs: TabsFromD) -> Tabs<T, TabsFromD> {
+    pub fn with_tabs<TabsFromD: TabsFromData<T>>(self, tabs: TabsFromD) -> Tabs<T, TabsFromD> {
         Tabs {
             axis: self.axis,
             cross: self.cross,
             rotation: self.rotation,
-            content: TabsContent::Building { tabs },
+            content: TabsContent::Complete { tabs },
         }
     }
 
@@ -796,12 +821,16 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<T> for Tabs<T, TFD> {
             std::mem::swap(&mut self.content, &mut temp);
 
             self.content = match temp {
-                TabsContent::Building {
-                    tabs: tabs_from_data,
-                } => {
+                TabsContent::Building { tabs } => {
                     ctx.children_changed();
                     TabsContent::Running {
-                        scope: self.make_scope(tabs_from_data),
+                        scope: self.make_scope(TFD::build(tabs)),
+                    }
+                }
+                TabsContent::Complete { tabs } => {
+                    ctx.children_changed();
+                    TabsContent::Running {
+                        scope: self.make_scope(tabs),
                     }
                 }
                 _ => temp,

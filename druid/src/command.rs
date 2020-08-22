@@ -358,10 +358,6 @@ impl<T: Any> SingleUse<T> {
         SingleUse(Mutex::new(Some(data)))
     }
 
-    pub fn empty() -> Self {
-        SingleUse(Mutex::new(None))
-    }
-
     /// Takes the value, leaving a None in its place.
     pub fn take(&self) -> Option<T> {
         self.0.lock().unwrap().take()

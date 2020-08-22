@@ -116,6 +116,8 @@ struct NumberedTabs;
 impl TabsFromData<Advanced> for NumberedTabs {
     type TabSet = usize;
     type TabKey = usize;
+    type Build = ();
+
     fn initial_tabs(&self, data: &Advanced) -> Self::TabSet {
         data.number
     }
@@ -144,11 +146,10 @@ impl TabsFromData<Advanced> for NumberedTabs {
 }
 
 fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
-    let dyn_tabs = Tabs::new()
+    let dyn_tabs = Tabs::of(NumberedTabs)
         .with_axis(tab_config.axis)
         .with_cross_axis_alignment(tab_config.cross)
         .with_rotation(tab_config.rotation)
-        .with_tabs(NumberedTabs)
         .lens(AppState::advanced);
 
     let adv = Flex::column()
