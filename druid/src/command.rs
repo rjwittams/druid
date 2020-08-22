@@ -358,7 +358,7 @@ impl<T: Any> SingleUse<T> {
         SingleUse(Mutex::new(Some(data)))
     }
 
-    pub fn empty()->Self{
+    pub fn empty() -> Self {
         SingleUse(Mutex::new(None))
     }
 

@@ -510,8 +510,8 @@ impl EventCtx<'_, '_> {
     }
 }
 
-impl UpdateCtx<'_, '_>{
-    pub fn has_requested_update(&mut self)-> bool {
+impl UpdateCtx<'_, '_> {
+    pub fn has_requested_update(&mut self) -> bool {
         self.widget_state.request_update
     }
 }

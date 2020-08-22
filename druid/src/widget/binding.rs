@@ -493,7 +493,7 @@ impl<
         }
     }
 
-    fn check_for_changes(&mut self, data: &T, env: &Env)-> bool {
+    fn check_for_changes(&mut self, data: &T, env: &Env) -> bool {
         self.binding.append_change_required(
             self.contained.bindable(),
             data,

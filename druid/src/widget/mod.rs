@@ -80,7 +80,7 @@ pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
 pub use rotated::Rotated;
-pub use scope::{DefaultScopePolicy, Scope, ScopePolicy};
+pub use scope::{DefaultScopePolicy, LensScopeTransfer, Scope, ScopePolicy, ScopeTransfer};
 pub use scroll::{Scroll, ScrollTo, ScrollToProperty, SCROLL_TO};
 pub use sized_box::SizedBox;
 pub use slider::Slider;
@@ -91,7 +91,7 @@ pub use stepper::Stepper;
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
 #[cfg(feature = "im")]
-pub use tabs::{TabOrientation, Tabs, TabsBody, TabsState, TabsFromData, InitialTab, TabBodyPod, StaticTabs};
+pub use tabs::{StaticTabs, TabBodyPod, TabOrientation, Tabs, TabsBody, TabsFromData, TabsState};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]
