@@ -1,4 +1,4 @@
-use druid::piet::{Color, FontBuilder, Text, TextLayout, TextLayoutBuilder};
+use druid::piet::{Color, Text, TextLayout, TextLayoutBuilder};
 use druid::widget::prelude::*;
 use druid::widget::{
     Axis, Bindable, BindingExt, DefaultScopePolicy, Flex, Label, LensBindingExt, Padding, Scope,
@@ -125,7 +125,7 @@ fn build_widget() -> impl Widget<OuterState> {
         .with_child(TextBox::new().lens(OuterState::job));
 
     let scope = Scope::new(
-        DefaultScopePolicy::for_lens(
+        DefaultScopePolicy::from_lens(
             InnerState::new,  // How to construct the inner state from its input
             InnerState::text, // How to extract the input back out of the inner state
         ),
