@@ -1,18 +1,39 @@
-use druid::widget::{
-    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
-    SizedBox, TabBodyPod, TabOrientation, Tabs, TabsFromData, ViewSwitcher,
-};
+use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, TabBodyPod, TabOrientation, Tabs, TabsFromData, ViewSwitcher, TabInfo, Split};
 use druid::{
     theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WidgetPod, WindowDesc,
 };
+use im::Vector;
 
 #[derive(Data, Clone)]
 struct Basic {}
 
 #[derive(Data, Clone, Lens)]
 struct Advanced {
-    number: usize,
+    highest_tab: usize,
+    removed_tabs: usize,
+    tab_labels: Vector<usize>
 }
+
+impl Advanced {
+    fn new(highest_tab: usize) -> Self {
+        Advanced { highest_tab, removed_tabs: 0, tab_labels: (1..=highest_tab).collect() }
+    }
+
+    fn add_tab(&mut self){
+        self.highest_tab += 1;
+        self.tab_labels.push_back(self.highest_tab);
+    }
+
+    fn remove_tab(&mut self, idx: usize) {
+        if idx >= self.tab_labels.len() {
+           log::warn!("Attempt to remove non existent tab at index {}", idx)
+        }else {
+            self.removed_tabs += 1;
+            self.tab_labels.remove(idx);
+        }
+    }
+}
+
 
 #[derive(Data, Clone, Lens)]
 struct TabConfig {
@@ -42,7 +63,7 @@ pub fn main() {
             rotation: TabOrientation::Standard,
         },
         basic: Basic {},
-        advanced: Advanced { number: 2 },
+        advanced: Advanced::new(2),
     };
 
     // start the application
@@ -114,34 +135,40 @@ fn build_root_widget() -> impl Widget<AppState> {
 struct NumberedTabs;
 
 impl TabsFromData<Advanced> for NumberedTabs {
-    type TabSet = usize;
+    type TabSet = (usize, usize);
     type TabKey = usize;
     type Build = ();
 
     fn initial_tabs(&self, data: &Advanced) -> Self::TabSet {
-        data.number
+        (data.highest_tab, data.removed_tabs)
     }
 
     fn tabs_changed(&self, old_data: &Advanced, data: &Advanced) -> Option<Self::TabSet> {
-        if old_data.number != data.number {
-            Some(data.number)
+        if old_data.highest_tab != data.highest_tab || old_data.highest_tab != data.removed_tabs {
+            Some( (data.highest_tab, data.removed_tabs) )
         } else {
             None
         }
     }
 
-    fn keys_from_set(&self, set: Self::TabSet) -> Vec<Self::TabKey> {
-        (0..set).collect()
+    fn keys_from_set(&self, set: Self::TabSet, data: &Advanced) -> Vec<Self::TabKey> {
+        data.tab_labels.iter().copied().collect()
     }
 
-    fn name_from_key(&self, key: Self::TabKey) -> String {
-        format!("Dynamic tab {:?}", key)
+    fn info_from_key(&self, key: Self::TabKey) -> TabInfo {
+        TabInfo::new(format!("Tab {:?}", key), true)
     }
 
     fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<Advanced>> {
         Some(WidgetPod::new(
             Label::new(format!("Dynamic tab body {:?}", key)).boxed(),
         ))
+    }
+
+    fn close_tab(&self, key: Self::TabKey, data: &mut Advanced) {
+        if let Some(idx) = data.tab_labels.index_of(&key) {
+            data.remove_tab(idx)
+        }
     }
 }
 
@@ -154,14 +181,13 @@ fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
 
     let adv = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(Label::new("More involved!"))
+        .with_child(Label::new("Control dynamic tabs"))
         .with_child(
-            Button::new("Increase")
-                .on_click(|_c, d: &mut usize, _e| *d += 1)
-                .lens(Advanced::number),
+            Button::new("Add a tab")
+                .on_click(|_c, d: &mut Advanced, _e| d.add_tab())
         )
         .with_child(Label::new(|adv: &Advanced, _e: &Env| {
-            format!("My number is {}", adv.number)
+            format!("Highest tab number is {}", adv.highest_tab)
         }))
         .with_spacer(20.)
         .lens(AppState::advanced);
@@ -178,9 +204,7 @@ fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
         .with_tab("Page 6", Label::new("Basic kind of stuff"))
         .with_tab("Page 7", Label::new("Basic kind of stuff"));
 
-    let col = Flex::column()
-        .with_flex_child(main_tabs, 0.5)
-        .with_flex_child(dyn_tabs, 0.5);
+    let col = Split::rows(main_tabs, dyn_tabs).draggable(true);
 
     col
 }

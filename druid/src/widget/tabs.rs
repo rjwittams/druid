@@ -24,10 +24,7 @@ use std::rc::Rc;
 use crate::kurbo::Line;
 use crate::piet::RenderContext;
 
-use crate::widget::{
-    Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope,
-    ScopePolicy,
-};
+use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope, ScopePolicy, Image, Button};
 use crate::{
     theme, Affine, BoxConstraints, Color, Data, Env, Event, EventCtx, Insets, LayoutCtx, Lens,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, SingleUse, Size, UpdateCtx, Widget, WidgetExt,
@@ -36,10 +33,21 @@ use crate::{
 
 type TabsScope<T, TFD> = Scope<TabsScopePolicy<T, TFD>, Box<dyn Widget<TabsState<T, TFD>>>>;
 pub type TabBodyPod<T> = WidgetPod<T, Box<dyn Widget<T>>>;
-type TabBarPod = WidgetPod<TabIndex, Box<dyn Widget<TabIndex>>>;
+type TabBarPod<T, TFD> = WidgetPod<TabsState<T, TFD>, Box<dyn Widget<TabsState<T, TFD>>>>;
 type TabIndex = usize;
 
 const MILLIS: u64 = 1_000_000; // Number of nanos
+
+pub struct TabInfo{
+    pub name: String,
+    pub can_close: bool
+}
+
+impl TabInfo {
+    pub fn new(name: String, can_close: bool) -> Self {
+        TabInfo { name, can_close }
+    }
+}
 
 pub trait TabsFromData<T>: Data {
     type TabSet;
@@ -47,14 +55,22 @@ pub trait TabsFromData<T>: Data {
     type Build; // This may only be useful for static tabs or other implementations supporting AddTab.
                 // It can be filled in with () until associated type defaults are stable
 
-    fn build(_build: Self::Build) -> Self {
-        unimplemented!() // This should only be implemented if supporting AddTab.
-    }
+
     fn initial_tabs(&self, data: &T) -> Self::TabSet;
     fn tabs_changed(&self, old_data: &T, data: &T) -> Option<Self::TabSet>;
-    fn keys_from_set(&self, set: Self::TabSet) -> Vec<Self::TabKey>;
-    fn name_from_key(&self, key: Self::TabKey) -> String;
+    fn keys_from_set(&self, set: Self::TabSet, data: &T) -> Vec<Self::TabKey>;
+    fn info_from_key(&self, key: Self::TabKey) -> TabInfo;
     fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<T>>;
+
+    #[allow(unused_variables)]
+    fn build(build: Self::Build) -> Self {
+        unimplemented!() // This should only be implemented if supporting AddTab.
+    }
+
+    #[allow(unused_variables)]
+    fn close_tab(&self, key: Self::TabKey, data: &mut T){
+
+    }
 }
 
 #[derive(Clone)]
@@ -76,8 +92,9 @@ impl<T> StaticTabs<T> {
 pub struct STabKey(pub usize);
 
 impl <T: Data> Data for StaticTabs<T>{
-    fn same(&self, other: &Self) -> bool {
+    fn same(&self, _other: &Self) -> bool {
         // Changing the tabs after construction shouldn't be possible for static tabs
+        // It seems pointless to compare them
         true
     }
 }
@@ -101,12 +118,12 @@ impl<T: Data> TabsFromData<T> for StaticTabs<T> {
         None
     }
 
-    fn keys_from_set(&self, _set: Self::TabSet) -> Vec<Self::TabKey> {
+    fn keys_from_set(&self, _set: Self::TabSet, data: &T) -> Vec<Self::TabKey> {
         (0..self.tabs.len()).map(STabKey).collect()
     }
 
-    fn name_from_key(&self, key: Self::TabKey) -> String {
-        self.tabs[key.0].name.clone()
+    fn info_from_key(&self, key: Self::TabKey) -> TabInfo {
+        TabInfo::new(self.tabs[key.0].name.clone(), false)
     }
 
     fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<T>> {
@@ -141,11 +158,11 @@ impl<T: Data, TFD: TabsFromData<T>> TabsState<T, TFD> {
     }
 }
 
-pub struct TabBar<T, TFD: TabsFromData<T>> {
+pub struct TabBar<T: Data, TFD: TabsFromData<T>> {
     axis: Axis,
     cross: CrossAxisAlignment,
     orientation: TabOrientation,
-    tabs: Vec<(TFD::TabKey, TabBarPod)>,
+    tabs: Vec<(TFD::TabKey, TabBarPod<T, TFD>)>,
     hot: Option<TabIndex>,
     phantom_t: PhantomData<T>,
     phantom_tfd: PhantomData<TFD>,
@@ -184,20 +201,34 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
     fn ensure_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) {
         // Borrow checker fun
         let (orientation, axis, cross) = (self.orientation, self.axis, self.cross);
-        let rotate = |w| orientation.rotate_and_box(w, axis, cross);
+        let finish = |w| WidgetPod::new(orientation.rotate_and_box(w, axis, cross));
+        let finish2 = |w| WidgetPod::new(orientation.rotate_and_box(w, axis, cross));
 
         ensure_for_tabs(
             &mut self.tabs,
             &data.tabs_from_data,
             tab_set,
-            |tfd, key, _| {
-                let name = tfd.name_from_key(key);
-                let label = Label::<usize>::new(&name[..])
+            &data.inner,
+            |tfd, key, _idx| {
+                let info = tfd.info_from_key(key.clone());
+
+                let label = Label::<TabsState<T, TFD>>::new(&info.name[..])
                     .with_font("Gill Sans".to_string())
                     .with_text_color(Color::WHITE)
                     .with_text_size(12.0)
                     .padding(Insets::uniform_xy(9., 5.));
-                WidgetPod::new(rotate(label))
+
+                if info.can_close{
+                    let c_key = key.clone();
+                    let row = Flex::row()
+                        .with_child(label)
+                        .with_child(Label::new( "ⓧ" ).on_click( move |ctx, data : &mut TabsState<T, TFD>, env|{
+                            data.tabs_from_data.close_tab(c_key.clone(),  &mut data.inner);
+                        }));
+                    finish(row)
+                }else{
+                    finish2(label)
+                }
             },
         );
     }
@@ -215,7 +246,6 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
             Event::MouseDown(e) => {
                 if let Some(idx) = self.find_idx(e.pos) {
                     data.selected = idx;
-                    ctx.is_handled();
                 }
             }
             Event::MouseMove(e) => {
@@ -229,11 +259,11 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
                     ctx.request_paint();
                 }
             }
-            _ => {
-                for (mut idx, (_, tab)) in self.tabs.iter_mut().enumerate() {
-                    tab.event(ctx, event, &mut idx, env);
-                }
-            }
+            _ => {}
+        }
+
+        for (_, tab) in self.tabs.iter_mut() {
+            tab.event(ctx, event, data, env);
         }
     }
 
@@ -251,8 +281,8 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
             ctx.request_layout();
         }
 
-        for (mut idx, (_, tab)) in self.tabs.iter_mut().enumerate() {
-            tab.lifecycle(ctx, event, &mut idx, env);
+        for  (_, tab) in self.tabs.iter_mut() {
+            tab.lifecycle(ctx, event, data, env);
         }
     }
 
@@ -279,15 +309,15 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        _data: &TabsState<T, TFD>,
+        data: &TabsState<T, TFD>,
         env: &Env,
     ) -> Size {
         let (mut major, mut minor) = (0., 0.);
-        for (idx, (_, tab)) in self.tabs.iter_mut().enumerate() {
-            let size = tab.layout(ctx, bc, &idx, env);
+        for (_, tab) in self.tabs.iter_mut() {
+            let size = tab.layout(ctx, bc, data, env);
             tab.set_layout_rect(
                 ctx,
-                &idx,
+                data,
                 env,
                 Rect::from_origin_size(self.axis.pack(major, 0.), size),
             );
@@ -295,10 +325,10 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
             minor = f64::max(minor, self.axis.minor(size));
         }
         // Now go back through to reset the minors
-        for (idx, (_, tab)) in self.tabs.iter_mut().enumerate() {
+        for (_, tab) in self.tabs.iter_mut() {
             let rect = tab.layout_rect();
             let rect = rect.with_size(self.axis.pack(self.axis.major(rect.size()), minor));
-            tab.set_layout_rect(ctx, &idx, env, rect);
+            tab.set_layout_rect(ctx, data, env, rect);
         }
 
         let wanted = self
@@ -310,6 +340,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
     fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<T, TFD>, env: &Env) {
         let hl_thickness = 2.;
         let highlight = env.get(theme::PRIMARY_LIGHT);
+        // TODO: allow reversing tab order (makes more sense in some rotations)
         for (idx, (_, tab)) in self.tabs.iter_mut().enumerate() {
             let rect = tab.layout_rect();
             let rect = Rect::from_origin_size(rect.origin(), rect.size());
@@ -320,7 +351,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
             };
             ctx.fill(rect, &bg);
 
-            tab.paint(ctx, &idx, env);
+            tab.paint(ctx, data, env);
             if idx == data.selected {
                 let (maj_near, maj_far) = self.axis.major_span(&rect);
                 let (min_near, min_far) = self.axis.minor_span(&rect);
@@ -391,12 +422,13 @@ fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(
     contents: &mut Vec<(TFD::TabKey, Content)>,
     tfd: &TFD,
     tab_set: TFD::TabSet,
+    data: &T,
     f: impl Fn(&TFD, TFD::TabKey, usize) -> Content,
 ) -> Vec<usize> {
     let mut existing_by_key: HashMap<TFD::TabKey, Content> = contents.drain(..).collect();
 
     let mut existing_idx = Vec::new();
-    for (idx, key) in tfd.keys_from_set(tab_set).into_iter().enumerate() {
+    for (idx, key) in tfd.keys_from_set(tab_set, data).into_iter().enumerate() {
         let next = if let Some(child) = existing_by_key.remove(&key) {
             existing_idx.push(contents.len());
             child
@@ -430,6 +462,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
             &mut self.children,
             &data.tabs_from_data,
             tab_set,
+            &data.inner,
             |tfd, key, idx| {
                 if let Some(body) = tfd.body_from_key(key.clone()) {
                     body
