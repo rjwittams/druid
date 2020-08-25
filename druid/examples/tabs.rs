@@ -1,6 +1,6 @@
-use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, TabBodyPod, TabOrientation, Tabs, TabsFromData, ViewSwitcher, TabInfo, Split};
+use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, TabOrientation, Tabs, TabsFromData, ViewSwitcher, TabInfo, Split};
 use druid::{
-    theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WidgetPod, WindowDesc,
+    theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc,
 };
 use im::Vector;
 
@@ -138,31 +138,22 @@ impl TabsFromData<Advanced> for NumberedTabs {
     type TabSet = (usize, usize);
     type TabKey = usize;
     type Build = ();
+    type BodyWidget = Label<Advanced>;
 
-    fn initial_tabs(&self, data: &Advanced) -> Self::TabSet {
+    fn tabs(&self, data: &Advanced) -> Self::TabSet {
         (data.highest_tab, data.removed_tabs)
     }
 
-    fn tabs_changed(&self, old_data: &Advanced, data: &Advanced) -> Option<Self::TabSet> {
-        if old_data.highest_tab != data.highest_tab || old_data.highest_tab != data.removed_tabs {
-            Some( (data.highest_tab, data.removed_tabs) )
-        } else {
-            None
-        }
-    }
-
-    fn keys_from_set(&self, set: Self::TabSet, data: &Advanced) -> Vec<Self::TabKey> {
+    fn keys_from_set(&self, _set: Self::TabSet, data: &Advanced) -> Vec<Self::TabKey> {
         data.tab_labels.iter().copied().collect()
     }
 
-    fn info_from_key(&self, key: Self::TabKey) -> TabInfo {
+    fn info_from_key(&self, key: Self::TabKey, _data: &Advanced) -> TabInfo {
         TabInfo::new(format!("Tab {:?}", key), true)
     }
 
-    fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<Advanced>> {
-        Some(WidgetPod::new(
-            Label::new(format!("Dynamic tab body {:?}", key)).boxed(),
-        ))
+    fn body_from_key(&self, key: Self::TabKey, _data: &Advanced) -> Option<Label<Advanced>> {
+        Some(Label::new(format!("Dynamic tab body {:?}", key)))
     }
 
     fn close_tab(&self, key: Self::TabKey, data: &mut Advanced) {

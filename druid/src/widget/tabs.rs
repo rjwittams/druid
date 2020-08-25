@@ -32,7 +32,7 @@ use crate::{
 };
 
 type TabsScope<T, TFD> = Scope<TabsScopePolicy<T, TFD>, Box<dyn Widget<TabsState<T, TFD>>>>;
-pub type TabBodyPod<T> = WidgetPod<T, Box<dyn Widget<T>>>;
+type TabBodyPod<T, TFD> = WidgetPod<T, <TFD as TabsFromData<T>>::BodyWidget>;
 type TabBarPod<T, TFD> = WidgetPod<TabsState<T, TFD>, Box<dyn Widget<TabsState<T, TFD>>>>;
 type TabIndex = usize;
 
@@ -50,26 +50,35 @@ impl TabInfo {
 }
 
 pub trait TabsFromData<T>: Data {
-    type TabSet;
+    type TabSet: Eq;
     type TabKey: Hash + Eq + Clone + Debug;
     type Build; // This may only be useful for static tabs or other implementations supporting AddTab.
                 // It can be filled in with () until associated type defaults are stable
 
+    type BodyWidget: Widget<T>;
 
-    fn initial_tabs(&self, data: &T) -> Self::TabSet;
-    fn tabs_changed(&self, old_data: &T, data: &T) -> Option<Self::TabSet>;
-    fn keys_from_set(&self, set: Self::TabSet, data: &T) -> Vec<Self::TabKey>;
-    fn info_from_key(&self, key: Self::TabKey) -> TabInfo;
-    fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<T>>;
-
-    #[allow(unused_variables)]
-    fn build(build: Self::Build) -> Self {
-        unimplemented!() // This should only be implemented if supporting AddTab.
+    fn tabs(&self, data: &T) -> Self::TabSet;
+    fn tabs_changed(&self, old_data: &T, data: &T) -> Option<Self::TabSet>{
+        let cur = self.tabs(data);
+        if cur != self.tabs(old_data){
+            Some(cur)
+        }else{
+            None
+        }
     }
+    fn keys_from_set(&self, set: Self::TabSet, data: &T) -> Vec<Self::TabKey>;
+    fn info_from_key(&self, key: Self::TabKey, data: &T) -> TabInfo;
+    fn body_from_key(&self, key: Self::TabKey, data: &T) -> Option<Self::BodyWidget>;
 
     #[allow(unused_variables)]
     fn close_tab(&self, key: Self::TabKey, data: &mut T){
 
+    }
+
+    #[allow(unused_variables)]
+    // This should only be implemented if supporting AddTab - possibly only StaticTabs needs to.
+    fn build(build: Self::Build) -> Self {
+        unimplemented!()
     }
 }
 
@@ -103,14 +112,9 @@ impl<T: Data> TabsFromData<T> for StaticTabs<T> {
     type TabSet = ();
     type TabKey = STabKey;
     type Build = Vec<InitialTab<T>>;
+    type BodyWidget = Box<dyn Widget<T>>;
 
-    fn build(build: Self::Build) -> Self {
-        StaticTabs {
-            tabs: Rc::new(build),
-        }
-    }
-
-    fn initial_tabs(&self, _data: &T) -> Self::TabSet {
+    fn tabs(&self, _data: &T) -> Self::TabSet {
         ()
     }
 
@@ -122,12 +126,18 @@ impl<T: Data> TabsFromData<T> for StaticTabs<T> {
         (0..self.tabs.len()).map(STabKey).collect()
     }
 
-    fn info_from_key(&self, key: Self::TabKey) -> TabInfo {
+    fn info_from_key(&self, key: Self::TabKey, data: &T) -> TabInfo {
         TabInfo::new(self.tabs[key.0].name.clone(), false)
     }
 
-    fn body_from_key(&self, key: Self::TabKey) -> Option<TabBodyPod<T>> {
+    fn body_from_key(&self, key: Self::TabKey, data: &T) -> Option<Self::BodyWidget> {
         self.tabs[key.0].child.take()
+    }
+
+    fn build(build: Self::Build) -> Self {
+        StaticTabs {
+            tabs: Rc::new(build),
+        }
     }
 }
 
@@ -210,7 +220,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
             tab_set,
             &data.inner,
             |tfd, key, _idx| {
-                let info = tfd.info_from_key(key.clone());
+                let info = tfd.info_from_key(key.clone(), &data.inner);
 
                 let label = Label::<TabsState<T, TFD>>::new(&info.name[..])
                     .with_font("Gill Sans".to_string())
@@ -275,7 +285,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
         env: &Env,
     ) {
         if let LifeCycle::WidgetAdded = event {
-            let init_set = data.tabs_from_data.initial_tabs(&data.inner);
+            let init_set = data.tabs_from_data.tabs(&data.inner);
             self.ensure_tabs(data, init_set);
             ctx.children_changed();
             ctx.request_layout();
@@ -441,7 +451,7 @@ fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(
 }
 
 pub struct TabsBody<T, TFD: TabsFromData<T>> {
-    children: Vec<(TFD::TabKey, TabBodyPod<T>)>,
+    children: Vec<(TFD::TabKey, TabBodyPod<T, TFD>)>,
     transition: Option<TabsTransition>,
     axis: Axis,
     phantom_tfd: PhantomData<TFD>,
@@ -464,22 +474,24 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
             tab_set,
             &data.inner,
             |tfd, key, idx| {
-                if let Some(body) = tfd.body_from_key(key.clone()) {
+                let w =  if let Some(body) = tfd.body_from_key(key.clone(), &data.inner) {
                     body
                 } else {
                     // Make a dummy body
-                    WidgetPod::<T, Box<dyn Widget<T>>>::new(Box::new(Label::new(format!(
-                        "Could not create tab for key {:?} at index {}",
-                        key, idx
-                    ))))
-                }
+                    // Box::new(Label::new(format!(
+                    //     "Could not create tab for key {:?} at index {}",
+                    //     key, idx
+                    // )))
+                    todo!("Could not create tab for key {:?} at index {}", key, idx)
+                };
+                WidgetPod::new(w)
             },
         )
     }
 }
 
 impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
-    fn active(&mut self, state: &TabsState<T, TFD>) -> Option<&mut (TFD::TabKey, TabBodyPod<T>)> {
+    fn active(&mut self, state: &TabsState<T, TFD>) -> Option<&mut (TFD::TabKey, TabBodyPod<T, TFD>)> {
         self.children.get_mut(state.selected)
     }
 }
@@ -537,7 +549,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
         env: &Env,
     ) {
         if let LifeCycle::WidgetAdded = event {
-            let init_set = data.tabs_from_data.initial_tabs(&data.inner);
+            let init_set = data.tabs_from_data.tabs(&data.inner);
             self.make_tabs(data, init_set);
             ctx.children_changed();
             ctx.request_layout();
@@ -712,14 +724,14 @@ impl TabOrientation {
 
 pub struct InitialTab<T> {
     name: String,
-    child: SingleUse<TabBodyPod<T>>, // This is to avoid cloning provided tabs
+    child: SingleUse<Box<dyn Widget<T>>>, // This is to avoid cloning provided tabs
 }
 
 impl<T: Data> InitialTab<T> {
     pub fn new(name: impl Into<String>, child: impl Widget<T> + 'static) -> Self {
         InitialTab {
             name: name.into(),
-            child: SingleUse::new(WidgetPod::new(Box::new(child))),
+            child: SingleUse::new(Box::new(child)),
         }
     }
 }
