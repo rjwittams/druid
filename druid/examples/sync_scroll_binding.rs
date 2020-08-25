@@ -93,20 +93,16 @@ impl Widget<String> for LensedWidget {
         let (font, found) = if try_font.is_some() {
             (try_font.unwrap(), true)
         } else {
-            (
-                ctx.text().font_family("Arial").unwrap(),
-                false,
-            )
+            (ctx.text().font_family("Arial").unwrap(), false)
         };
 
         if let Ok(layout) = ctx
             .text()
-            .new_text_layout(
-                &format!(
-                    "Data: {} Field: {} Font: {} Found: {}",
-                    data, self.text, self.font_name, found
-                )
-            ).max_width(200.0)
+            .new_text_layout(&format!(
+                "Data: {} Field: {} Font: {} Found: {}",
+                data, self.text, self.font_name, found
+            ))
+            .max_width(200.0)
             .font(font, 15.0)
             .text_color(Color::BLACK)
             .build()

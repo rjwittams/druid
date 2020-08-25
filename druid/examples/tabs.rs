@@ -1,8 +1,9 @@
-use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup, SizedBox, TabOrientation, Tabs, TabsFromData, ViewSwitcher, TabInfo, Split};
-use druid::{
-    theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc,
-};
 use druid::im::Vector;
+use druid::widget::{
+    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
+    SizedBox, Split, TabInfo, TabOrientation, Tabs, TabsPolicy, ViewSwitcher,
+};
+use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc};
 
 #[derive(Data, Clone)]
 struct Basic {}
@@ -11,29 +12,36 @@ struct Basic {}
 struct Advanced {
     highest_tab: usize,
     removed_tabs: usize,
-    tab_labels: Vector<usize>
+    tab_labels: Vector<usize>,
 }
 
 impl Advanced {
     fn new(highest_tab: usize) -> Self {
-        Advanced { highest_tab, removed_tabs: 0, tab_labels: (1..=highest_tab).collect() }
+        Advanced {
+            highest_tab,
+            removed_tabs: 0,
+            tab_labels: (1..=highest_tab).collect(),
+        }
     }
 
-    fn add_tab(&mut self){
+    fn add_tab(&mut self) {
         self.highest_tab += 1;
         self.tab_labels.push_back(self.highest_tab);
     }
 
     fn remove_tab(&mut self, idx: usize) {
         if idx >= self.tab_labels.len() {
-           log::warn!("Attempt to remove non existent tab at index {}", idx)
-        }else {
+            log::warn!("Attempt to remove non existent tab at index {}", idx)
+        } else {
             self.removed_tabs += 1;
             self.tab_labels.remove(idx);
         }
     }
-}
 
+    fn tabs_key(&self) -> (usize, usize) {
+        (self.highest_tab, self.removed_tabs)
+    }
+}
 
 #[derive(Data, Clone, Lens)]
 struct TabConfig {
@@ -134,30 +142,29 @@ fn build_root_widget() -> impl Widget<AppState> {
 #[derive(Clone, Data)]
 struct NumberedTabs;
 
-impl TabsFromData for NumberedTabs {
-    type TabSet = (usize, usize);
-    type TabKey = usize;
+impl TabsPolicy for NumberedTabs {
+    type Key = usize;
     type Build = ();
-    type T = Advanced;
+    type Input = Advanced;
     type BodyWidget = Label<Advanced>;
 
-    fn tabs(&self, data: &Advanced) -> Self::TabSet {
-        (data.highest_tab, data.removed_tabs)
+    fn tabs_changed(&self, old_data: &Advanced, data: &Advanced) -> bool {
+        old_data.tabs_key() != data.tabs_key()
     }
 
-    fn keys_from_set(&self, _set: Self::TabSet, data: &Advanced) -> Vec<Self::TabKey> {
+    fn tabs(&self, data: &Advanced) -> Vec<Self::Key> {
         data.tab_labels.iter().copied().collect()
     }
 
-    fn info_from_key(&self, key: Self::TabKey, _data: &Advanced) -> TabInfo {
+    fn tab_info(&self, key: Self::Key, _data: &Advanced) -> TabInfo {
         TabInfo::new(format!("Tab {:?}", key), true)
     }
 
-    fn body_from_key(&self, key: Self::TabKey, _data: &Advanced) -> Option<Label<Advanced>> {
+    fn tab_body(&self, key: Self::Key, _data: &Advanced) -> Option<Label<Advanced>> {
         Some(Label::new(format!("Dynamic tab body {:?}", key)))
     }
 
-    fn close_tab(&self, key: Self::TabKey, data: &mut Advanced) {
+    fn close_tab(&self, key: Self::Key, data: &mut Advanced) {
         if let Some(idx) = data.tab_labels.index_of(&key) {
             data.remove_tab(idx)
         }
@@ -174,10 +181,7 @@ fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
     let adv = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(Label::new("Control dynamic tabs"))
-        .with_child(
-            Button::new("Add a tab")
-                .on_click(|_c, d: &mut Advanced, _e| d.add_tab())
-        )
+        .with_child(Button::new("Add a tab").on_click(|_c, d: &mut Advanced, _e| d.add_tab()))
         .with_child(Label::new(|adv: &Advanced, _e: &Env| {
             format!("Highest tab number is {}", adv.highest_tab)
         }))
