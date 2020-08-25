@@ -2,7 +2,7 @@ use druid::widget::{Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlign
 use druid::{
     theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc,
 };
-use im::Vector;
+use druid::im::Vector;
 
 #[derive(Data, Clone)]
 struct Basic {}
