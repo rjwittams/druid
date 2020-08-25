@@ -1,4 +1,4 @@
-use druid::piet::{Color, Text, TextLayout, TextLayoutBuilder};
+use druid::piet::{Color, Text, TextLayoutBuilder};
 use druid::widget::prelude::*;
 use druid::widget::{
     Axis, Bindable, BindingExt, DefaultScopePolicy, Flex, Label, LensBindingExt, Padding, Scope,
@@ -85,16 +85,16 @@ impl Widget<String> for LensedWidget {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &String, _env: &Env) {
-        let rect = ctx.region().to_rect();
+        let rect = ctx.region().bounding_box();
         ctx.fill(rect, &Color::WHITE);
 
-        let try_font = ctx.text().new_font_by_name(&self.font_name, 15.0).build();
+        let try_font = ctx.text().font_family(&self.font_name);
 
-        let (font, found) = if try_font.is_ok() {
+        let (font, found) = if try_font.is_some() {
             (try_font.unwrap(), true)
         } else {
             (
-                ctx.text().new_font_by_name("Arial", 15.0).build().unwrap(),
+                ctx.text().font_family("Arial").unwrap(),
                 false,
             )
         };
@@ -102,19 +102,16 @@ impl Widget<String> for LensedWidget {
         if let Ok(layout) = ctx
             .text()
             .new_text_layout(
-                &font,
                 &format!(
                     "Data: {} Field: {} Font: {} Found: {}",
                     data, self.text, self.font_name, found
-                ),
-                200.0,
-            )
+                )
+            ).max_width(200.0)
+            .font(font, 15.0)
+            .text_color(Color::BLACK)
             .build()
         {
-            let fill_color = Color::BLACK;
-            if let Some(metric) = layout.line_metric(0) {
-                ctx.draw_text(&layout, (0.0, metric.height), &fill_color);
-            }
+            ctx.draw_text(&layout, (0.0, 0.0));
         }
     }
 }

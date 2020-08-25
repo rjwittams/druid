@@ -25,7 +25,7 @@ use crate::kurbo::Line;
 use crate::piet::RenderContext;
 
 use crate::widget::{
-    Axis, CrossAxisAlignment, DefaultScopePolicy, Flex, Label, LensScopeTransfer, Scope,
+    Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope,
     ScopePolicy,
 };
 use crate::{
@@ -41,14 +41,14 @@ type TabIndex = usize;
 
 const MILLIS: u64 = 1_000_000; // Number of nanos
 
-pub trait TabsFromData<T>: Clone + 'static {
+pub trait TabsFromData<T>: Data {
     type TabSet;
     type TabKey: Hash + Eq + Clone + Debug;
-    type Build; // This may only be useful for static tabs.
+    type Build; // This may only be useful for static tabs or other implementations supporting AddTab.
                 // It can be filled in with () until associated type defaults are stable
 
     fn build(_build: Self::Build) -> Self {
-        unimplemented!()
+        unimplemented!() // This should only be implemented if supporting AddTab.
     }
     fn initial_tabs(&self, data: &T) -> Self::TabSet;
     fn tabs_changed(&self, old_data: &T, data: &T) -> Option<Self::TabSet>;
@@ -74,6 +74,13 @@ impl<T> StaticTabs<T> {
 
 #[derive(Data, Copy, Clone, Debug, PartialOrd, PartialEq, Eq, Hash)]
 pub struct STabKey(pub usize);
+
+impl <T: Data> Data for StaticTabs<T>{
+    fn same(&self, other: &Self) -> bool {
+        // Changing the tabs after construction shouldn't be possible for static tabs
+        true
+    }
+}
 
 impl<T: Data> TabsFromData<T> for StaticTabs<T> {
     type TabSet = ();
@@ -117,17 +124,11 @@ impl<T: Data> AddTab<T> for StaticTabs<T> {
     }
 }
 
-#[derive(Clone, Lens)]
+#[derive(Clone, Lens, Data)]
 pub struct TabsState<T: Data, TFD: TabsFromData<T>> {
     pub inner: T,
     pub selected: TabIndex,
     pub tabs_from_data: TFD,
-}
-
-impl<T: Data, TFD: TabsFromData<T>> Data for TabsState<T, TFD> {
-    fn same(&self, other: &Self) -> bool {
-        return self.inner.same(&other.inner) && self.selected.same(&other.selected);
-    }
 }
 
 impl<T: Data, TFD: TabsFromData<T>> TabsState<T, TFD> {
@@ -623,7 +624,7 @@ pub struct TabsScopePolicy<T, TFD> {
     phantom_t: PhantomData<T>,
 }
 
-impl<T, TFD: 'static> TabsScopePolicy<T, TFD> {
+impl<T, TFD> TabsScopePolicy<T, TFD> {
     pub fn new(tabs_from_data: TFD, selected: TabIndex) -> Self {
         Self {
             tabs_from_data,
@@ -681,7 +682,7 @@ pub struct InitialTab<T> {
     child: SingleUse<TabBodyPod<T>>, // This is to avoid cloning provided tabs
 }
 
-impl<T: 'static> InitialTab<T> {
+impl<T: Data> InitialTab<T> {
     pub fn new(name: impl Into<String>, child: impl Widget<T> + 'static) -> Self {
         InitialTab {
             name: name.into(),
@@ -690,7 +691,7 @@ impl<T: 'static> InitialTab<T> {
     }
 }
 
-pub enum TabsContent<T: Data, TFD: TabsFromData<T>> {
+enum TabsContent<T: Data, TFD: TabsFromData<T>> {
     Building {
         tabs: TFD::Build,
     },
@@ -717,7 +718,7 @@ impl<T: Data> Tabs<T, StaticTabs<T>> {
 }
 
 impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
-    pub fn with_content(content: TabsContent<T, TFD>) -> Self {
+    fn with_content(content: TabsContent<T, TFD>) -> Self {
         Tabs {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
@@ -730,7 +731,7 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
         Self::with_content(TabsContent::Complete { tabs })
     }
 
-    pub fn building(tabs_from_data: TFD::Build) -> Self {
+    pub fn building(tabs_from_data: TFD::Build) -> Self where TFD : AddTab<T> {
         Self::with_content(TabsContent::Building {
             tabs: tabs_from_data,
         })

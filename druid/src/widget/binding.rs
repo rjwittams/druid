@@ -257,7 +257,9 @@ impl<T, Controlled, PropValue: Data, LT: Lens<T, PropValue>, LC: Lens<Controlled
                 *c_prop = field_val.clone();
             })
         });
-        ctx.request_paint(); // This is because we don't know anything about the dependencies - what needs to happen
+        // This is because we don't know anything about the dependencies - what needs to happen.
+        // Could be passed in via constructor.
+        ctx.request_paint();
     }
 
     fn append_change_required(
