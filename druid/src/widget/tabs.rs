@@ -24,16 +24,16 @@ use std::rc::Rc;
 use crate::kurbo::Line;
 use crate::piet::RenderContext;
 
-use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope, ScopePolicy, Image, Button};
+use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope, ScopePolicy};
 use crate::{
     theme, Affine, BoxConstraints, Color, Data, Env, Event, EventCtx, Insets, LayoutCtx, Lens,
     LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, SingleUse, Size, UpdateCtx, Widget, WidgetExt,
     WidgetPod,
 };
 
-type TabsScope<T, TFD> = Scope<TabsScopePolicy<T, TFD>, Box<dyn Widget<TabsState<T, TFD>>>>;
-type TabBodyPod<T, TFD> = WidgetPod<T, <TFD as TabsFromData<T>>::BodyWidget>;
-type TabBarPod<T, TFD> = WidgetPod<TabsState<T, TFD>, Box<dyn Widget<TabsState<T, TFD>>>>;
+type TabsScope<TFD> = Scope<TabsScopePolicy<TFD>, Box<dyn Widget<TabsState<TFD>>>>;
+type TabBodyPod<TFD> = WidgetPod<<TFD as TabsFromData>::T, <TFD as TabsFromData>::BodyWidget>;
+type TabBarPod<TFD> = WidgetPod<TabsState<TFD>, Box<dyn Widget<TabsState<TFD>>>>;
 type TabIndex = usize;
 
 const MILLIS: u64 = 1_000_000; // Number of nanos
@@ -49,16 +49,17 @@ impl TabInfo {
     }
 }
 
-pub trait TabsFromData<T>: Data {
+pub trait TabsFromData: Data {
     type TabSet: Eq;
     type TabKey: Hash + Eq + Clone + Debug;
     type Build; // This may only be useful for static tabs or other implementations supporting AddTab.
                 // It can be filled in with () until associated type defaults are stable
 
-    type BodyWidget: Widget<T>;
+    type T : Data;
+    type BodyWidget: Widget<Self::T>;
 
-    fn tabs(&self, data: &T) -> Self::TabSet;
-    fn tabs_changed(&self, old_data: &T, data: &T) -> Option<Self::TabSet>{
+    fn tabs(&self, data: &Self::T) -> Self::TabSet;
+    fn tabs_changed(&self, old_data: &Self::T, data: &Self::T) -> Option<Self::TabSet>{
         let cur = self.tabs(data);
         if cur != self.tabs(old_data){
             Some(cur)
@@ -66,12 +67,12 @@ pub trait TabsFromData<T>: Data {
             None
         }
     }
-    fn keys_from_set(&self, set: Self::TabSet, data: &T) -> Vec<Self::TabKey>;
-    fn info_from_key(&self, key: Self::TabKey, data: &T) -> TabInfo;
-    fn body_from_key(&self, key: Self::TabKey, data: &T) -> Option<Self::BodyWidget>;
+    fn keys_from_set(&self, set: Self::TabSet, data: &Self::T) -> Vec<Self::TabKey>;
+    fn info_from_key(&self, key: Self::TabKey, data: &Self::T) -> TabInfo;
+    fn body_from_key(&self, key: Self::TabKey, data: &Self::T) -> Option<Self::BodyWidget>;
 
     #[allow(unused_variables)]
-    fn close_tab(&self, key: Self::TabKey, data: &mut T){
+    fn close_tab(&self, key: Self::TabKey, data: &mut Self::T){
 
     }
 
@@ -108,10 +109,11 @@ impl <T: Data> Data for StaticTabs<T>{
     }
 }
 
-impl<T: Data> TabsFromData<T> for StaticTabs<T> {
+impl<T: Data> TabsFromData for StaticTabs<T> {
     type TabSet = ();
     type TabKey = STabKey;
     type Build = Vec<InitialTab<T>>;
+    type T = T;
     type BodyWidget = Box<dyn Widget<T>>;
 
     fn tabs(&self, _data: &T) -> Self::TabSet {
@@ -122,15 +124,15 @@ impl<T: Data> TabsFromData<T> for StaticTabs<T> {
         None
     }
 
-    fn keys_from_set(&self, _set: Self::TabSet, data: &T) -> Vec<Self::TabKey> {
+    fn keys_from_set(&self, _set: Self::TabSet, _data: &T) -> Vec<Self::TabKey> {
         (0..self.tabs.len()).map(STabKey).collect()
     }
 
-    fn info_from_key(&self, key: Self::TabKey, data: &T) -> TabInfo {
+    fn info_from_key(&self, key: Self::TabKey, _data: &T) -> TabInfo {
         TabInfo::new(self.tabs[key.0].name.clone(), false)
     }
 
-    fn body_from_key(&self, key: Self::TabKey, data: &T) -> Option<Self::BodyWidget> {
+    fn body_from_key(&self, key: Self::TabKey, _data: &T) -> Option<Self::BodyWidget> {
         self.tabs[key.0].child.take()
     }
 
@@ -141,25 +143,25 @@ impl<T: Data> TabsFromData<T> for StaticTabs<T> {
     }
 }
 
-pub trait AddTab<T>: TabsFromData<T> {
-    fn add_tab(tabs: &mut Self::Build, name: impl Into<String>, child: impl Widget<T> + 'static);
+pub trait AddTab: TabsFromData {
+    fn add_tab(tabs: &mut Self::Build, name: impl Into<String>, child: impl Widget<Self::T> + 'static);
 }
 
-impl<T: Data> AddTab<T> for StaticTabs<T> {
+impl<T: Data> AddTab for StaticTabs<T> {
     fn add_tab(tabs: &mut Self::Build, name: impl Into<String>, child: impl Widget<T> + 'static) {
         tabs.push(InitialTab::new(name, child))
     }
 }
 
 #[derive(Clone, Lens, Data)]
-pub struct TabsState<T: Data, TFD: TabsFromData<T>> {
-    pub inner: T,
+pub struct TabsState<TFD: TabsFromData> {
+    pub inner: TFD::T,
     pub selected: TabIndex,
     pub tabs_from_data: TFD,
 }
 
-impl<T: Data, TFD: TabsFromData<T>> TabsState<T, TFD> {
-    pub fn new(inner: T, selected: usize, tabs_from_data: TFD) -> Self {
+impl<TFD: TabsFromData> TabsState<TFD> {
+    pub fn new(inner: TFD::T, selected: usize, tabs_from_data: TFD) -> Self {
         TabsState {
             inner,
             selected,
@@ -168,17 +170,16 @@ impl<T: Data, TFD: TabsFromData<T>> TabsState<T, TFD> {
     }
 }
 
-pub struct TabBar<T: Data, TFD: TabsFromData<T>> {
+pub struct TabBar<TFD: TabsFromData> {
     axis: Axis,
     cross: CrossAxisAlignment,
     orientation: TabOrientation,
-    tabs: Vec<(TFD::TabKey, TabBarPod<T, TFD>)>,
+    tabs: Vec<(TFD::TabKey, TabBarPod<TFD>)>,
     hot: Option<TabIndex>,
-    phantom_t: PhantomData<T>,
     phantom_tfd: PhantomData<TFD>,
 }
 
-impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
+impl<TFD: TabsFromData> TabBar<TFD> {
     pub fn new(axis: Axis, cross: CrossAxisAlignment, orientation: TabOrientation) -> Self {
         TabBar {
             axis,
@@ -186,7 +187,6 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
             orientation,
             tabs: vec![],
             hot: None,
-            phantom_t: Default::default(),
             phantom_tfd: Default::default(),
         }
     }
@@ -208,7 +208,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
         }
     }
 
-    fn ensure_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) {
+    fn ensure_tabs(&mut self, data: &TabsState<TFD>, tab_set: TFD::TabSet) {
         // Borrow checker fun
         let (orientation, axis, cross) = (self.orientation, self.axis, self.cross);
         let finish = |w| WidgetPod::new(orientation.rotate_and_box(w, axis, cross));
@@ -222,7 +222,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
             |tfd, key, _idx| {
                 let info = tfd.info_from_key(key.clone(), &data.inner);
 
-                let label = Label::<TabsState<T, TFD>>::new(&info.name[..])
+                let label = Label::<TabsState<TFD>>::new(&info.name[..])
                     .with_font("Gill Sans".to_string())
                     .with_text_color(Color::WHITE)
                     .with_text_size(12.0)
@@ -232,7 +232,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
                     let c_key = key.clone();
                     let row = Flex::row()
                         .with_child(label)
-                        .with_child(Label::new( "ⓧ" ).on_click( move |ctx, data : &mut TabsState<T, TFD>, env|{
+                        .with_child(Label::new( "ⓧ" ).on_click( move |_ctx, data : &mut TabsState<TFD>, _env|{
                             data.tabs_from_data.close_tab(c_key.clone(),  &mut data.inner);
                         }));
                     finish(row)
@@ -244,12 +244,12 @@ impl<T: Data, TFD: TabsFromData<T>> TabBar<T, TFD> {
     }
 }
 
-impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD> {
+impl<TFD: TabsFromData> Widget<TabsState<TFD>> for TabBar<TFD> {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut TabsState<T, TFD>,
+        data: &mut TabsState<TFD>,
         env: &Env,
     ) {
         match event {
@@ -281,7 +281,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &TabsState<T, TFD>,
+        data: &TabsState<TFD>,
         env: &Env,
     ) {
         if let LifeCycle::WidgetAdded = event {
@@ -299,8 +299,8 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &TabsState<T, TFD>,
-        data: &TabsState<T, TFD>,
+        old_data: &TabsState<TFD>,
+        data: &TabsState<TFD>,
         _env: &Env,
     ) {
         let changed_tabs = data
@@ -319,7 +319,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &TabsState<T, TFD>,
+        data: &TabsState<TFD>,
         env: &Env,
     ) -> Size {
         let (mut major, mut minor) = (0., 0.);
@@ -347,7 +347,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabBar<T, TFD>
         bc.constrain(wanted)
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<T, TFD>, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<TFD>, env: &Env) {
         let hl_thickness = 2.;
         let highlight = env.get(theme::PRIMARY_LIGHT);
         // TODO: allow reversing tab order (makes more sense in some rotations)
@@ -428,11 +428,11 @@ impl TabsTransition {
     }
 }
 
-fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(
+fn ensure_for_tabs<Content, TFD: TabsFromData + ?Sized>(
     contents: &mut Vec<(TFD::TabKey, Content)>,
     tfd: &TFD,
     tab_set: TFD::TabSet,
-    data: &T,
+    data: &TFD::T,
     f: impl Fn(&TFD, TFD::TabKey, usize) -> Content,
 ) -> Vec<usize> {
     let mut existing_by_key: HashMap<TFD::TabKey, Content> = contents.drain(..).collect();
@@ -450,15 +450,15 @@ fn ensure_for_tabs<Content, T, TFD: TabsFromData<T> + ?Sized>(
     existing_idx
 }
 
-pub struct TabsBody<T, TFD: TabsFromData<T>> {
-    children: Vec<(TFD::TabKey, TabBodyPod<T, TFD>)>,
+pub struct TabsBody<TFD: TabsFromData> {
+    children: Vec<(TFD::TabKey, TabBodyPod<TFD>)>,
     transition: Option<TabsTransition>,
     axis: Axis,
     phantom_tfd: PhantomData<TFD>,
 }
 
-impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
-    pub fn new(axis: Axis) -> TabsBody<T, TFD> {
+impl<TFD: TabsFromData> TabsBody<TFD> {
+    pub fn new(axis: Axis) -> TabsBody<TFD> {
         TabsBody {
             children: vec![],
             transition: None,
@@ -467,7 +467,7 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
         }
     }
 
-    fn make_tabs(&mut self, data: &TabsState<T, TFD>, tab_set: TFD::TabSet) -> Vec<usize> {
+    fn make_tabs(&mut self, data: &TabsState<TFD>, tab_set: TFD::TabSet) -> Vec<usize> {
         ensure_for_tabs(
             &mut self.children,
             &data.tabs_from_data,
@@ -490,8 +490,8 @@ impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
     }
 }
 
-impl<T: Data, TFD: TabsFromData<T>> TabsBody<T, TFD> {
-    fn active(&mut self, state: &TabsState<T, TFD>) -> Option<&mut (TFD::TabKey, TabBodyPod<T, TFD>)> {
+impl<TFD: TabsFromData> TabsBody<TFD> {
+    fn active(&mut self, state: &TabsState<TFD>) -> Option<&mut (TFD::TabKey, TabBodyPod<TFD>)> {
         self.children.get_mut(state.selected)
     }
 }
@@ -524,12 +524,12 @@ fn hidden_should_receive_lifecycle(lc: &LifeCycle) -> bool {
     }
 }
 
-impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TFD> {
+impl<TFD: TabsFromData> Widget<TabsState<TFD>> for TabsBody<TFD> {
     fn event(
         &mut self,
         ctx: &mut EventCtx,
         event: &Event,
-        data: &mut TabsState<T, TFD>,
+        data: &mut TabsState<TFD>,
         env: &Env,
     ) {
         if hidden_should_receive_event(event) {
@@ -545,7 +545,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
         &mut self,
         ctx: &mut LifeCycleCtx,
         event: &LifeCycle,
-        data: &TabsState<T, TFD>,
+        data: &TabsState<TFD>,
         env: &Env,
     ) {
         if let LifeCycle::WidgetAdded = event {
@@ -577,8 +577,8 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        old_data: &TabsState<T, TFD>,
-        data: &TabsState<T, TFD>,
+        old_data: &TabsState<TFD>,
+        data: &TabsState<TFD>,
         env: &Env,
     ) {
         let changed_tabs = data
@@ -620,7 +620,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
         &mut self,
         ctx: &mut LayoutCtx,
         bc: &BoxConstraints,
-        data: &TabsState<T, TFD>,
+        data: &TabsState<TFD>,
         env: &Env,
     ) -> Size {
         match self.active(data) {
@@ -634,7 +634,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
         }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<T, TFD>, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &TabsState<TFD>, env: &Env) {
         if let Some(trans) = &self.transition {
             let axis = self.axis;
             let size = ctx.size();
@@ -663,26 +663,24 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<TabsState<T, TFD>> for TabsBody<T, TF
 }
 
 // This only needs to exist to be able to give a reasonable type to the TabScope
-pub struct TabsScopePolicy<T, TFD> {
+pub struct TabsScopePolicy<TFD> {
     tabs_from_data: TFD,
     selected: TabIndex,
-    phantom_t: PhantomData<T>,
 }
 
-impl<T, TFD> TabsScopePolicy<T, TFD> {
+impl<TFD> TabsScopePolicy<TFD> {
     pub fn new(tabs_from_data: TFD, selected: TabIndex) -> Self {
         Self {
             tabs_from_data,
-            selected,
-            phantom_t: Default::default(),
+            selected
         }
     }
 }
 
-impl<T: Data, TFD: TabsFromData<T>> ScopePolicy for TabsScopePolicy<T, TFD> {
-    type In = T;
-    type State = TabsState<T, TFD>;
-    type Transfer = LensScopeTransfer<tabs_state_derived_lenses::inner, T, Self::State>;
+impl<TFD: TabsFromData> ScopePolicy for TabsScopePolicy<TFD> {
+    type In = TFD::T;
+    type State = TabsState<TFD>;
+    type Transfer = LensScopeTransfer<tabs_state_derived_lenses::inner, Self::In, Self::State>;
 
     fn create(self, inner: &Self::In) -> (Self::State, Self::Transfer) {
         (
@@ -736,7 +734,7 @@ impl<T: Data> InitialTab<T> {
     }
 }
 
-enum TabsContent<T: Data, TFD: TabsFromData<T>> {
+enum TabsContent<TFD: TabsFromData> {
     Building {
         tabs: TFD::Build,
     },
@@ -744,26 +742,26 @@ enum TabsContent<T: Data, TFD: TabsFromData<T>> {
         tabs: TFD,
     },
     Running {
-        scope: WidgetPod<T, TabsScope<T, TFD>>,
+        scope: WidgetPod<TFD::T, TabsScope<TFD>>,
     },
     Swapping,
 }
 
-pub struct Tabs<T: Data, TFD: TabsFromData<T> = StaticTabs<T>> {
+pub struct Tabs<TFD: TabsFromData> {
     axis: Axis,
     cross: CrossAxisAlignment, // Not sure if this should have another enum. Middle means nothing here
     rotation: TabOrientation,
-    content: TabsContent<T, TFD>,
+    content: TabsContent<TFD>,
 }
 
-impl<T: Data> Tabs<T, StaticTabs<T>> {
+impl<T: Data> Tabs<StaticTabs<T>> {
     pub fn new() -> Self {
         Tabs::building(Vec::new())
     }
 }
 
-impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
-    fn with_content(content: TabsContent<T, TFD>) -> Self {
+impl<TFD: TabsFromData> Tabs<TFD> {
+    fn with_content(content: TabsContent<TFD>) -> Self {
         Tabs {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
@@ -776,7 +774,7 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
         Self::with_content(TabsContent::Complete { tabs })
     }
 
-    pub fn building(tabs_from_data: TFD::Build) -> Self where TFD : AddTab<T> {
+    pub fn building(tabs_from_data: TFD::Build) -> Self where TFD : AddTab {
         Self::with_content(TabsContent::Building {
             tabs: tabs_from_data,
         })
@@ -800,18 +798,18 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
     pub fn with_tab(
         mut self,
         name: impl Into<String>,
-        child: impl Widget<T> + 'static,
-    ) -> Tabs<T, TFD>
+        child: impl Widget<TFD::T> + 'static,
+    ) -> Tabs<TFD>
     where
-        TFD: AddTab<T>,
+        TFD: AddTab,
     {
         self.add_tab(name, child);
         self
     }
 
-    pub fn add_tab(&mut self, name: impl Into<String>, child: impl Widget<T> + 'static)
+    pub fn add_tab(&mut self, name: impl Into<String>, child: impl Widget<TFD::T> + 'static)
     where
-        TFD: AddTab<T>,
+        TFD: AddTab,
     {
         if let TabsContent::Building {
             tabs: tabs_from_data,
@@ -823,7 +821,7 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
         }
     }
 
-    pub fn with_tabs<TabsFromD: TabsFromData<T>>(self, tabs: TabsFromD) -> Tabs<T, TabsFromD> {
+    pub fn with_tabs<TabsFromD: TabsFromData>(self, tabs: TabsFromD) -> Tabs<TabsFromD> {
         Tabs {
             axis: self.axis,
             cross: self.cross,
@@ -832,7 +830,7 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
         }
     }
 
-    pub fn make_scope(&self, tabs_from_data: TFD) -> WidgetPod<T, TabsScope<T, TFD>> {
+    pub fn make_scope(&self, tabs_from_data: TFD) -> WidgetPod<TFD::T, TabsScope<TFD>> {
         let (bar, body) = (
             (TabBar::new(self.axis, self.cross, self.rotation), 0.0),
             (
@@ -843,7 +841,7 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
                 1.0,
             ),
         );
-        let mut layout: Flex<TabsState<T, TFD>> = Flex::for_axis(self.axis.cross());
+        let mut layout: Flex<TabsState<TFD>> = Flex::for_axis(self.axis.cross());
 
         if let CrossAxisAlignment::End = self.cross {
             layout.add_flex_child(body.0, body.1);
@@ -860,14 +858,14 @@ impl<T: Data, TFD: TabsFromData<T>> Tabs<T, TFD> {
     }
 }
 
-impl<T: Data, TFD: TabsFromData<T>> Widget<T> for Tabs<T, TFD> {
-    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+impl<TFD: TabsFromData> Widget<TFD::T> for Tabs<TFD> {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut TFD::T, env: &Env) {
         if let TabsContent::Running { scope } = &mut self.content {
             scope.event(ctx, event, data, env);
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
+    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &TFD::T, env: &Env) {
         if let LifeCycle::WidgetAdded = event {
             let mut temp = TabsContent::Swapping;
             std::mem::swap(&mut self.content, &mut temp);
@@ -893,13 +891,13 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<T> for Tabs<T, TFD> {
         }
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &TFD::T, data: &TFD::T, env: &Env) {
         if let TabsContent::Running { scope } = &mut self.content {
             scope.update(ctx, data, env);
         }
     }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
+    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &TFD::T, env: &Env) -> Size {
         if let TabsContent::Running { scope } = &mut self.content {
             let size = scope.layout(ctx, bc, data, env);
             scope.set_layout_rect(ctx, data, env, Rect::from_origin_size(Point::ORIGIN, size));
@@ -909,7 +907,7 @@ impl<T: Data, TFD: TabsFromData<T>> Widget<T> for Tabs<T, TFD> {
         }
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &TFD::T, env: &Env) {
         if let TabsContent::Running { scope } = &mut self.content {
             scope.paint(ctx, data, env)
         }

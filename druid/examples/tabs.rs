@@ -134,10 +134,11 @@ fn build_root_widget() -> impl Widget<AppState> {
 #[derive(Clone, Data)]
 struct NumberedTabs;
 
-impl TabsFromData<Advanced> for NumberedTabs {
+impl TabsFromData for NumberedTabs {
     type TabSet = (usize, usize);
     type TabKey = usize;
     type Build = ();
+    type T = Advanced;
     type BodyWidget = Label<Advanced>;
 
     fn tabs(&self, data: &Advanced) -> Self::TabSet {
