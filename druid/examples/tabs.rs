@@ -146,6 +146,7 @@ impl TabsPolicy for NumberedTabs {
     type Key = usize;
     type Build = ();
     type Input = Advanced;
+    type LabelWidget = Label<Advanced>;
     type BodyWidget = Label<Advanced>;
 
     fn tabs_changed(&self, old_data: &Advanced, data: &Advanced) -> bool {
@@ -168,6 +169,10 @@ impl TabsPolicy for NumberedTabs {
         if let Some(idx) = data.tab_labels.index_of(&key) {
             data.remove_tab(idx)
         }
+    }
+
+    fn tab_label(&self, _key: Self::Key, info: &TabInfo, _data: &Self::Input) -> Self::LabelWidget {
+        Self::default_make_label(info)
     }
 }
 

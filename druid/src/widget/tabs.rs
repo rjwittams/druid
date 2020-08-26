@@ -26,9 +26,8 @@ use crate::piet::RenderContext;
 
 use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, LensScopeTransfer, Scope, ScopePolicy};
 use crate::{
-    theme, Affine, BoxConstraints, Color, Data, Env, Event, EventCtx, Insets, LayoutCtx, Lens,
-    LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect, SingleUse, Size, UpdateCtx, Widget, WidgetExt,
-    WidgetPod,
+    theme, Affine, BoxConstraints, Data, Env, Event, EventCtx, Insets, LayoutCtx, Lens, LifeCycle,
+    LifeCycleCtx, PaintCtx, Point, Rect, SingleUse, Size, UpdateCtx, Widget, WidgetExt, WidgetPod,
 };
 
 type TabsScope<TP> = Scope<TabsScopePolicy<TP>, Box<dyn Widget<TabsState<TP>>>>;
@@ -61,6 +60,10 @@ pub trait TabsPolicy: Data {
     /// A flexible default is Box<dyn Widget<Self::Input>>
     type BodyWidget: Widget<Self::Input>;
 
+    /// The common type for all label widgets in this set of tabs
+    /// Usually this would be Label<Self::Input>
+    type LabelWidget: Widget<Self::Input>;
+
     /// This policy whilst it is being built.
     /// This is only be useful for implementations supporting AddTab, such as StaticTabs.
     /// It can be filled in with () by other implementations until associated type defaults are stable
@@ -78,6 +81,10 @@ pub trait TabsPolicy: Data {
     /// Body widget for the tab
     fn tab_body(&self, key: Self::Key, data: &Self::Input) -> Option<Self::BodyWidget>;
 
+    /// Label widget for the tab.
+    /// Usually implemented with a call to default_make_label ( can't default here because Self::LabelWidget isn't determined)
+    fn tab_label(&self, key: Self::Key, info: &TabInfo, data: &Self::Input) -> Self::LabelWidget;
+
     /// Change the data to reflect the user requesting to close a tab.
     #[allow(unused_variables)]
     fn close_tab(&self, key: Self::Key, data: &mut Self::Input) {}
@@ -87,6 +94,10 @@ pub trait TabsPolicy: Data {
     /// This should only be implemented if supporting AddTab - possibly only StaticTabs needs to.
     fn build(build: Self::Build) -> Self {
         unimplemented!()
+    }
+
+    fn default_make_label(info: &TabInfo) -> Label<Self::Input> {
+        Label::new(info.name.clone()).with_text_color(theme::FOREGROUND_LIGHT)
     }
 }
 
@@ -117,6 +128,7 @@ impl<T: Data> TabsPolicy for StaticTabs<T> {
     type Key = usize;
     type Input = T;
     type BodyWidget = Box<dyn Widget<T>>;
+    type LabelWidget = Label<T>;
     type Build = Vec<InitialTab<T>>;
 
     fn tabs_changed(&self, _old_data: &T, _data: &T) -> bool {
@@ -133,6 +145,10 @@ impl<T: Data> TabsPolicy for StaticTabs<T> {
 
     fn tab_body(&self, key: Self::Key, _data: &T) -> Option<Self::BodyWidget> {
         self.tabs[key].child.take()
+    }
+
+    fn tab_label(&self, _key: Self::Key, info: &TabInfo, _data: &Self::Input) -> Self::LabelWidget {
+        Self::default_make_label(info)
     }
 
     fn build(build: Self::Build) -> Self {
@@ -217,33 +233,31 @@ impl<TP: TabsPolicy> TabBar<TP> {
         let finish_row = |w| WidgetPod::new(orientation.rotate_and_box(w, axis, cross));
         let finish_label = |w| WidgetPod::new(orientation.rotate_and_box(w, axis, cross));
 
-        ensure_for_tabs(
-            &mut self.tabs,
-            &data.policy,
-            &data.inner,
-            |policy, key| {
-                let info = policy.tab_info(key.clone(), &data.inner);
+        ensure_for_tabs(&mut self.tabs, &data.policy, &data.inner, |policy, key| {
+            let info = policy.tab_info(key.clone(), &data.inner);
 
-                let label = Label::<TabsState<TP>>::new(&info.name[..])
-                    .with_font("Gill Sans".to_string())
-                    .with_text_color(Color::WHITE)
-                    .with_text_size(12.0)
-                    .padding(Insets::uniform_xy(9., 5.));
+            let label = data
+                .policy
+                .tab_label(key.clone(), &info, &data.inner)
+                // TODO: Type inference fails here because both sides of the lens are dependent on
+                // associated types of the policy. Needs changes to lens derivation to embed PhantomData of the (relevant?) type params)
+                // of the lensed types into the lens, to type inference has something to grab hold of
+                .lens::<TabsState<TP>, tabs_state_derived_lenses::inner>(TabsState::<TP>::inner)
+                .padding(Insets::uniform_xy(9., 5.));
 
-                if info.can_close {
-                    let row = Flex::row()
-                        .with_child(label)
-                        .with_child(Label::new("ⓧ").on_click(
-                            move |_ctx, data: &mut TabsState<TP>, _env| {
-                                data.policy.close_tab(key.clone(), &mut data.inner);
-                            },
-                        ));
-                    finish_row(row)
-                } else {
-                    finish_label(label)
-                }
-            },
-        );
+            if info.can_close {
+                let row = Flex::row()
+                    .with_child(label)
+                    .with_child(Label::new("ⓧ").on_click(
+                        move |_ctx, data: &mut TabsState<TP>, _env| {
+                            data.policy.close_tab(key.clone(), &mut data.inner);
+                        },
+                    ));
+                finish_row(row)
+            } else {
+                finish_label(label)
+            }
+        });
     }
 }
 
