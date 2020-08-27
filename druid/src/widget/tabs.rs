@@ -116,6 +116,12 @@ impl<T> StaticTabs<T> {
     }
 }
 
+impl<T> Default for StaticTabs<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: Data> Data for StaticTabs<T> {
     fn same(&self, _other: &Self) -> bool {
         // Changing the tabs after construction shouldn't be possible for static tabs
@@ -478,11 +484,7 @@ impl<TP: TabsPolicy> TabsBody<TP> {
             &mut self.children,
             &data.policy,
             &data.inner,
-            |policy, key| {
-                policy
-                    .tab_body(key.clone(), &data.inner)
-                    .map(WidgetPod::new)
-            },
+            |policy, key| policy.tab_body(key, &data.inner).map(WidgetPod::new),
         )
     }
 
@@ -650,10 +652,8 @@ impl<TP: TabsPolicy> Widget<TabsState<TP>> for TabsBody<TP> {
                     child.paint_raw(ctx, &data.inner, env);
                 })
             }
-        } else {
-            if let Some(ref mut child) = Self::child(&mut self.children, data.selected) {
-                child.paint_raw(ctx, &data.inner, env);
-            }
+        } else if let Some(ref mut child) = Self::child(&mut self.children, data.selected) {
+            child.paint_raw(ctx, &data.inner, env);
         }
     }
 }
@@ -756,8 +756,14 @@ impl<T: Data> Tabs<StaticTabs<T>> {
     }
 }
 
+impl<T: Data> Default for Tabs<StaticTabs<T>> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<TP: TabsPolicy> Tabs<TP> {
-    fn with_content(content: TabsContent<TP>) -> Self {
+    fn of_content(content: TabsContent<TP>) -> Self {
         Tabs {
             axis: Axis::Horizontal,
             cross: CrossAxisAlignment::Start,
@@ -766,15 +772,15 @@ impl<TP: TabsPolicy> Tabs<TP> {
         }
     }
 
-    pub fn of(tabs: TP) -> Self {
-        Self::with_content(TabsContent::Complete { tabs })
+    pub fn for_policy(tabs: TP) -> Self {
+        Self::of_content(TabsContent::Complete { tabs })
     }
 
     pub fn building(tabs_from_data: TP::Build) -> Self
     where
         TP: AddTab,
     {
-        Self::with_content(TabsContent::Building {
+        Self::of_content(TabsContent::Building {
             tabs: tabs_from_data,
         })
     }
@@ -827,7 +833,7 @@ impl<TP: TabsPolicy> Tabs<TP> {
     }
 
     pub fn make_scope(&self, tabs_from_data: TP) -> WidgetPod<TP::Input, TabsScope<TP>> {
-        let (bar, body) = (
+        let (tabs_bar, tabs_body) = (
             (TabBar::new(self.axis, self.cross, self.rotation), 0.0),
             (
                 TabsBody::new(self.axis)
@@ -840,11 +846,11 @@ impl<TP: TabsPolicy> Tabs<TP> {
         let mut layout: Flex<TabsState<TP>> = Flex::for_axis(self.axis.cross());
 
         if let CrossAxisAlignment::End = self.cross {
-            layout.add_flex_child(body.0, body.1);
-            layout.add_flex_child(bar.0, bar.1);
+            layout.add_flex_child(tabs_body.0, tabs_body.1);
+            layout.add_flex_child(tabs_bar.0, tabs_bar.1);
         } else {
-            layout.add_flex_child(bar.0, bar.1);
-            layout.add_flex_child(body.0, body.1);
+            layout.add_flex_child(tabs_bar.0, tabs_bar.1);
+            layout.add_flex_child(tabs_body.0, tabs_body.1);
         };
 
         WidgetPod::new(Scope::new(

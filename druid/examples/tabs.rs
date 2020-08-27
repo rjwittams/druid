@@ -177,7 +177,7 @@ impl TabsPolicy for NumberedTabs {
 }
 
 fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
-    let dyn_tabs = Tabs::of(NumberedTabs)
+    let dyn_tabs = Tabs::for_policy(NumberedTabs)
         .with_axis(tab_config.axis)
         .with_cross_axis_alignment(tab_config.cross)
         .with_rotation(tab_config.rotation)
@@ -205,7 +205,5 @@ fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
         .with_tab("Page 6", Label::new("Basic kind of stuff"))
         .with_tab("Page 7", Label::new("Basic kind of stuff"));
 
-    let col = Split::rows(main_tabs, dyn_tabs).draggable(true);
-
-    col
+    Split::rows(main_tabs, dyn_tabs).draggable(true)
 }

@@ -47,7 +47,6 @@ mod stepper;
 #[cfg_attr(docsrs, doc(cfg(feature = "svg")))]
 mod svg;
 mod switch;
-#[cfg(feature = "im")]
 mod tabs;
 mod textbox;
 mod view_switcher;
@@ -90,7 +89,6 @@ pub use stepper::Stepper;
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
-#[cfg(feature = "im")]
 pub use tabs::{TabInfo, TabOrientation, Tabs, TabsPolicy, TabsState};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
