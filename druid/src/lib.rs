@@ -172,8 +172,8 @@ pub use shell::keyboard_types;
 pub use shell::{
     Application, Clipboard, ClipboardFormat, Code, Cursor, Error as PlatformError,
     FileDialogOptions, FileInfo, FileSpec, FormatId, HotKey, KbKey, KeyEvent, Location, Modifiers,
-    Monitor, MouseButton, MouseButtons, RawMods, Scalable, Scale, Screen, SysMods, Text,
-    TimerToken, WindowHandle, WindowState,
+    MouseButton, MouseButtons, RawMods, Region, Scalable, Scale, SysMods, Text, TimerToken,
+    WindowHandle, Monitor, WindowState,
 };
 
 pub use crate::core::WidgetPod;
@@ -181,7 +181,7 @@ pub use app::{AppLauncher, WindowConfig, WindowDesc};
 pub use app_delegate::{AppDelegate, DelegateCtx};
 pub use box_constraints::BoxConstraints;
 pub use command::{sys as commands, Command, Selector, SingleUse, Target};
-pub use contexts::{EventCtx, LayoutCtx, LifeCycleCtx, PaintCtx, Region, UpdateCtx};
+pub use contexts::{EventCtx, LayoutCtx, LifeCycleCtx, PaintCtx, UpdateCtx};
 pub use data::Data;
 pub use env::{Env, Key, KeyOrValue, Value, ValueType};
 pub use event::{Event, InternalEvent, InternalLifeCycle, LifeCycle};

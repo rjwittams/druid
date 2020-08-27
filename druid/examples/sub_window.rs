@@ -20,7 +20,7 @@ use druid::{
     LensExt, LifeCycle, LifeCycleCtx, LocalizedString, PaintCtx, Point, Rect, RenderContext, Size,
     TimerToken, UpdateCtx, Vec2, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId,
 };
-use druid_shell::piet::{FontBuilder, Text};
+use druid_shell::piet::{Text};
 use druid_shell::{Screen, WindowLevel};
 use instant::{Duration, Instant};
 use piet_common::{TextLayout, TextLayoutBuilder};
@@ -270,7 +270,7 @@ impl Widget<()> for ScreenThing {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, _data: &(), env: &Env) {
-        let sz = ctx.region().to_rect().size();
+        let sz = ctx.size();
 
         let monitors = Screen::get_monitors();
         let all = monitors
@@ -280,33 +280,25 @@ impl Widget<()> for ScreenThing {
         if all.width() > 0. && all.height() > 0. {
             let trans = Affine::scale(f64::min(sz.width / all.width(), sz.height / all.height()))
                 * Affine::translate(all.origin().to_vec2()).inverse();
-            let font = ctx
+            if let Some(font) = ctx
                 .text()
-                .new_font_by_name(env.get(theme::FONT_NAME), env.get(theme::TEXT_SIZE_NORMAL))
-                .build()
-                .unwrap();
+                .font_family(env.get(theme::FONT_NAME)) {
+                for (i, mon) in monitors.iter().enumerate() {
+                    let vr = mon.virtual_rect();
+                    let tr = trans.transform_rect_bbox(vr);
+                    ctx.stroke(tr, &Color::WHITE, 1.0);
 
-            for (i, mon) in monitors.iter().enumerate() {
-                let vr = mon.virtual_rect();
-                let tr = trans.transform_rect_bbox(vr);
-                ctx.stroke(tr, &Color::WHITE, 1.0);
-
-                let tl = ctx
-                    .text()
-                    .new_text_layout(
-                        &font,
-                        &format!("{}:{}x{}@{},{}", i, vr.width(), vr.height(), vr.x0, vr.y0),
-                        tr.width() - 5.,
-                    )
-                    .build()
-                    .unwrap();
-
-                ctx.draw_text(
-                    &tl,
-                    tr.center()
-                        - Vec2::new(tl.width() / 2., tl.line_metric(0).unwrap().height / 2.),
-                    &Color::WHITE,
-                );
+                    if let Ok(tl) = ctx
+                        .text()
+                        .new_text_layout(&format!("{}:{}x{}@{},{}", i, vr.width(), vr.height(), vr.x0, vr.y0), )
+                        .max_width(tr.width() - 5., )
+                        .font(font.clone(), env.get(theme::TEXT_SIZE_NORMAL))
+                        .text_color(Color::WHITE)
+                        .build() {
+                        ctx.draw_text(&tl, tr.center() - tl.size().to_vec2() * 0.5
+                        );
+                    }
+                }
             }
         }
     }

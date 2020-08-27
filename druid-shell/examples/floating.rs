@@ -20,7 +20,7 @@ use druid_shell::piet::{Color, RenderContext};
 
 use druid_shell::{
     Application, Cursor, FileDialogOptions, FileSpec, HotKey, KbKey, KeyEvent, Menu, MouseEvent,
-    Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowState,
+    Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowState, Region
 };
 use piet_common::Piet;
 use std::time::Duration;
@@ -51,11 +51,12 @@ impl WinHandler for HelloState {
         self.handle = handle.clone();
     }
 
-    fn paint(&mut self, piet: &mut piet_common::Piet, _: Rect) -> bool {
+
+
+    fn paint(&mut self, piet: &mut piet_common::Piet, _: &Region) -> () {
         let rect = self.size.to_rect();
         piet.fill(rect, &BG_COLOR);
         piet.stroke(Line::new((10.0, 50.0), (90.0, 90.0)), &FG_COLOR, 1.0);
-        false
     }
 
     fn command(&mut self, id: u32) {
@@ -142,6 +143,10 @@ impl WinHandler for HelloState {
     fn as_any(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn prepare_paint(&mut self) {
+
+    }
 }
 
 #[derive(Default)]
@@ -186,11 +191,14 @@ impl WinHandler for FloatingPanel {
         self.size = size;
     }
 
-    fn paint(&mut self, piet: &mut Piet, _invalid_rect: Rect) -> bool {
+    fn prepare_paint(&mut self) {
+
+    }
+
+    fn paint(&mut self, piet: &mut Piet, _invalid: &Region) -> () {
         let rect = self.size.to_rect();
         piet.fill(rect, &Color::WHITE);
         piet.stroke(Line::new(rect.origin(), (rect.x1, rect.y1)), &FG_COLOR, 1.0);
-        false
     }
 
     fn mouse_down(&mut self, _event: &MouseEvent) {}
