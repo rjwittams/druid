@@ -577,6 +577,7 @@ impl WndProc for MyWndProc {
                     let mut rect: RECT = mem::zeroed();
                     // TODO: use GetUpdateRgn for more conservative invalidation
                     GetUpdateRect(hwnd, &mut rect, FALSE);
+                    let scale = self.scale();
                     ValidateRect(hwnd, null_mut());
                     let rect_dp = util::recti_to_rect(rect).to_dp(self.scale());
                     if rect_dp.area() != 0.0 {
@@ -585,7 +586,7 @@ impl WndProc for MyWndProc {
                     let invalid = self.take_invalid();
                     if !invalid.rects().is_empty() {
                         if s.render_target.is_none() {
-                            let rt = paint::create_render_target(&self.d2d_factory, hwnd);
+                            let rt = paint::create_render_target(&self.d2d_factory, hwnd, scale);
                             s.render_target = rt.ok();
                         }
                         s.handler.rebuild_resources();
@@ -628,8 +629,7 @@ impl WndProc for MyWndProc {
                             s.render(
                                 &self.d2d_factory,
                                 &self.dwrite_factory,
-                                &self.handle,
-                                rect_dp,
+                                &rect_dp.into(),
                             );
                         }
 
