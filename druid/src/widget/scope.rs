@@ -56,7 +56,7 @@ impl<F: FnOnce(In) -> State, L: Lens<State, In>, In: Data, State: Data>
     }
 }
 
-impl<F: Fn(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer> ScopePolicy
+impl<F: FnOnce(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer> ScopePolicy
     for DefaultScopePolicy<F, Transfer>
 {
     type In = Transfer::In;
@@ -121,7 +121,7 @@ enum ScopeContent<SP: ScopePolicy> {
 ///
 /// This is useful in circumstances where
 /// * A (potentially reusable) widget is composed of a tree of multiple cooperating child widgets
-/// * Those widgets communicate amongst themselves using Druids reactive data mechanisms
+/// * Those widgets communicate amongst themselves using Druid's reactive data mechanisms
 /// * It is undesirable to complicate the surrounding application state with the internal details
 ///   of the widget.
 ///
