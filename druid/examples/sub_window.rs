@@ -18,7 +18,7 @@ use druid::widget::{Align, Button, Controller, ControllerHost, Flex, Label, Text
 use druid::{
     theme, Affine, AppLauncher, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, Lens,
     LensExt, LifeCycle, LifeCycleCtx, LocalizedString, PaintCtx, Point, Rect, RenderContext, Size,
-    TimerToken, UpdateCtx, Vec2, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId,
+    TimerToken, UpdateCtx, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId,
 };
 use druid_shell::piet::{Text};
 use druid_shell::{Screen, WindowLevel};
@@ -305,7 +305,6 @@ impl Widget<()> for ScreenThing {
 }
 
 fn build_root_widget() -> impl Widget<HelloState> {
-    // a label that will determine its text based on the current app data.
     let label = ControllerHost::new(
         Label::new(|data: &HelloState, _env: &Env| {
             format!("Hello {}! {} ", data.name, data.sub.my_stuff)

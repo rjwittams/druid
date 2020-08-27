@@ -57,12 +57,9 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
                     .get_unchecked(SUB_WINDOW_PARENT_TO_HOST)
                     .downcast_ref::<U>()
                 {
+
                     self.data = update.deref().clone();
-                    let mut update_ctx = UpdateCtx {
-                        state: ctx.state,
-                        widget_state: ctx.widget_state,
-                    };
-                    self.child.update(&mut update_ctx, &self.data, env); // Should env be copied around too?
+                    ctx.request_update();
                 } else {
                     log::warn!("Received a sub window parent to host command that could not be unwrapped. \
                     This could mean that the sub window you requested and the enclosing widget pod that you opened it from do not share a common data type. \
@@ -93,8 +90,11 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
         self.child.lifecycle(ctx, event, &self.data, env)
     }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &(), _data: &(), _env: &Env) {
-        // Can't use this change
+    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(), _data: &(), env: &Env) {
+        if ctx.has_requested_update(){
+            // Should env be copied from the parent too? Possibly
+            self.child.update(ctx, &self.data, env);
+        }
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &(), env: &Env) -> Size {
