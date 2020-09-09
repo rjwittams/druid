@@ -22,11 +22,44 @@ use crate::theme;
 use crate::{
     Env, Event, EventCtx, LifeCycle, LifeCycleCtx, PaintCtx, Region, RenderContext, TimerToken,
 };
+use crate::widget::Axis;
 
 //TODO: Add this to env
 /// Minimum length for any scrollbar to be when measured on that
 /// scrollbar's primary axis.
 pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
+
+#[derive(Debug, Clone)]
+pub enum ScrollDirection {
+    Bidirectional,
+    Vertical,
+    Horizontal,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ScrollbarsEnabled {
+    None,
+    Horizontal,
+    Vertical,
+    Both,
+}
+
+impl ScrollbarsEnabled {
+    fn is_enabled(&self, direction: ScrollDirection) -> bool {
+        match (self, direction) {
+            (ScrollbarsEnabled::Both, _) => true,
+            (ScrollbarsEnabled::Horizontal, ScrollDirection::Horizontal) => true,
+            (ScrollbarsEnabled::Vertical, ScrollDirection::Vertical) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Default for ScrollbarsEnabled{
+    fn default() -> Self {
+        ScrollbarsEnabled::Both
+    }
+}
 
 /// Denotes which scrollbar, if any, is currently being hovered over
 /// by the mouse.
@@ -131,6 +164,8 @@ pub struct ScrollComponent {
     pub scroll_offset: Vec2,
     /// Current state of both scrollbars
     pub scrollbars: ScrollbarsState,
+
+    pub scrollbars_enabled: ScrollbarsEnabled,
 }
 
 impl Default for ScrollComponent {
@@ -146,27 +181,49 @@ impl ScrollComponent {
             content_size: Size::default(),
             scroll_offset: Vec2::new(0.0, 0.0),
             scrollbars: ScrollbarsState::default(),
+            scrollbars_enabled: ScrollbarsEnabled::default()
         }
     }
 
-    /// Scroll `delta` units.
-    ///
-    /// Returns `true` if the scroll offset has changed.
-    pub fn scroll(&mut self, delta: Vec2, layout_size: Size) -> bool {
-        let mut offset = self.scroll_offset + delta;
-        offset.x = offset
-            .x
-            .min(self.content_size.width - layout_size.width)
-            .max(0.0);
-        offset.y = offset
-            .y
-            .min(self.content_size.height - layout_size.height)
-            .max(0.0);
+    /// Update the scroll.
+   ///
+   /// Returns `true` if the scroll has been updated.
+    pub fn scroll_by(&mut self, delta: Vec2, layout_size: Size) -> bool {
+        self.scroll_to(self.scroll_offset + delta, layout_size)
+    }
+
+    pub fn scroll_to(&mut self, offset: Vec2, layout_size: Size) -> bool {
+        let offset = Vec2::new(
+            offset.x.min(self.content_size.width - layout_size.width).max(0.0),
+            offset.y.min(self.content_size.height - layout_size.height).max(0.0),
+        );
         if (offset - self.scroll_offset).hypot2() > 1e-12 {
             self.scroll_offset = offset;
             true
         } else {
             false
+        }
+    }
+
+    fn scroll_to_opt(&mut self, x: Option<f64>, y: Option<f64>, size: Size) -> bool {
+        let new_pos = Vec2::new(
+            x.unwrap_or(self.scroll_offset.x),
+            y.unwrap_or(self.scroll_offset.y),
+        );
+        self.scroll_to(new_pos, size)
+    }
+
+    pub fn scroll_on_axis(&mut self, axis: Axis, position: f64, size: Size) -> bool {
+        match axis {
+            Axis::Vertical => self.scroll_to_opt(None, Some(position), size),
+            Axis::Horizontal => self.scroll_to_opt(Some(position), None, size),
+        }
+    }
+
+    pub fn offset_for_axis(&self, axis: Axis) -> f64 {
+        match axis {
+            Axis::Vertical => self.scroll_offset.y,
+            Axis::Horizontal => self.scroll_offset.x,
         }
     }
 
@@ -248,7 +305,14 @@ impl ScrollComponent {
 
     /// Draw scroll bars.
     pub fn draw_bars(&self, ctx: &mut PaintCtx, viewport: Rect, env: &Env) {
-        if self.scrollbars.opacity <= 0.0 {
+        let (draw_vertical, draw_horizontal) = (
+            self.scrollbars_enabled
+                .is_enabled(ScrollDirection::Horizontal),
+            self.scrollbars_enabled
+                .is_enabled(ScrollDirection::Vertical),
+        );
+
+        if !(draw_vertical || draw_horizontal) || self.scrollbars.opacity <= 0.0 {
             return;
         }
 
@@ -265,7 +329,7 @@ impl ScrollComponent {
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
         // Vertical bar
-        if viewport.height() < self.content_size.height {
+        if draw_vertical && viewport.height() < self.content_size.height {
             let bounds = self
                 .calc_vertical_bar_bounds(viewport, env)
                 .inset(-edge_width / 2.0);
@@ -275,7 +339,7 @@ impl ScrollComponent {
         }
 
         // Horizontal bar
-        if viewport.width() < self.content_size.width {
+        if draw_horizontal && viewport.width() < self.content_size.width {
             let bounds = self
                 .calc_horizontal_bar_bounds(viewport, env)
                 .inset(-edge_width / 2.0);
@@ -289,7 +353,10 @@ impl ScrollComponent {
     ///
     /// Returns false if the vertical scrollbar is not visible
     pub fn point_hits_vertical_bar(&self, viewport: Rect, pos: Point, env: &Env) -> bool {
-        if viewport.height() < self.content_size.height {
+        if self
+            .scrollbars_enabled
+            .is_enabled(ScrollDirection::Vertical)
+            && viewport.height() < self.content_size.height {
             // Stretch hitbox to edge of widget
             let mut bounds = self.calc_vertical_bar_bounds(viewport, env);
             bounds.x1 = self.scroll_offset.x + viewport.width();
@@ -303,7 +370,10 @@ impl ScrollComponent {
     ///
     /// Returns false if the horizontal scrollbar is not visible
     pub fn point_hits_horizontal_bar(&self, viewport: Rect, pos: Point, env: &Env) -> bool {
-        if viewport.width() < self.content_size.width {
+        if self
+            .scrollbars_enabled
+            .is_enabled(ScrollDirection::Horizontal)
+            && viewport.width() < self.content_size.width {
             // Stretch hitbox to edge of widget
             let mut bounds = self.calc_horizontal_bar_bounds(viewport, env);
             bounds.y1 = self.scroll_offset.y + viewport.height();
@@ -339,7 +409,7 @@ impl ScrollComponent {
                             let bounds = self.calc_vertical_bar_bounds(viewport, env);
                             let mouse_y = event.pos.y + self.scroll_offset.y;
                             let delta = mouse_y - bounds.y0 - offset;
-                            self.scroll(Vec2::new(0f64, (delta / scale_y).ceil()), size);
+                            self.scroll_by(Vec2::new(0f64, (delta / scale_y).ceil()), size);
                             ctx.set_handled();
                         }
                         BarHeldState::Horizontal(offset) => {
@@ -347,7 +417,7 @@ impl ScrollComponent {
                             let bounds = self.calc_horizontal_bar_bounds(viewport, env);
                             let mouse_x = event.pos.x + self.scroll_offset.x;
                             let delta = mouse_x - bounds.x0 - offset;
-                            self.scroll(Vec2::new((delta / scale_x).ceil(), 0f64), size);
+                            self.scroll_by(Vec2::new((delta / scale_x).ceil(), 0f64), size);
                             ctx.set_handled();
                         }
                         _ => (),
@@ -457,7 +527,7 @@ impl ScrollComponent {
     pub fn handle_scroll(&mut self, ctx: &mut EventCtx, event: &Event, env: &Env) {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
-                if self.scroll(mouse.wheel_delta, ctx.size()) {
+                if self.scroll_by(mouse.wheel_delta, ctx.size()) {
                     ctx.request_paint();
                     ctx.set_handled();
                     self.reset_scrollbar_fade(|d| ctx.request_timer(d), env);

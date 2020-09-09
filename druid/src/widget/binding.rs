@@ -538,7 +538,7 @@ impl<
         self.contained.lifecycle(ctx, event, data, env);
         // This can't be factored out as there is no common trait between contexts
         if self.check_for_changes(data, env) {
-            ctx.submit_command(APPLY_BINDINGS, ctx.widget_state.id);
+            ctx.submit_command(APPLY_BINDINGS.to(ctx.widget_state.id));
         }
     }
 
@@ -549,14 +549,14 @@ impl<
         }
         self.contained.update(ctx, old_data, data, env);
         if self.check_for_changes(data, env) {
-            ctx.submit_command(APPLY_BINDINGS, ctx.widget_state.id);
+            ctx.submit_command(APPLY_BINDINGS.to(ctx.widget_state.id));
         }
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         let size = self.contained.layout(ctx, bc, data, env);
         if self.check_for_changes(data, env) {
-            ctx.submit_command(APPLY_BINDINGS, ctx.widget_state.id);
+            ctx.submit_command(APPLY_BINDINGS.to(ctx.widget_state.id));
         }
         size
     }

@@ -21,13 +21,9 @@ use crate::{
     scroll_component::*, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, UpdateCtx, Widget, WidgetPod,
 };
+use crate::widget::{Axis, BindableProperty, Bindable};
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone)]
-enum ScrollDirection {
-    Bidirectional,
-    Vertical,
-    Horizontal,
-}
 
 /// A container that scrolls its contents.
 ///
@@ -64,12 +60,29 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     /// Restrict scrolling to the vertical axis while locking child width.
     pub fn vertical(mut self) -> Self {
         self.direction = ScrollDirection::Vertical;
+        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Vertical;
         self
     }
 
     /// Restrict scrolling to the horizontal axis while locking child height.
     pub fn horizontal(mut self) -> Self {
         self.direction = ScrollDirection::Horizontal;
+        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Horizontal;
+        self
+    }
+
+    pub fn disable_scrollbars(mut self) -> Self {
+        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::None;
+        self
+    }
+
+    pub fn only_vertical_scrollbar(mut self) -> Self {
+        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Vertical;
+        self
+    }
+
+    pub fn only_horizontal_scrollbar(mut self) -> Self {
+        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Horizontal;
         self
     }
 
@@ -93,11 +106,23 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         self.scroll_component.scroll_offset
     }
 
-    /// Scroll `delta` units.
+    /// Scroll by `delta` units.
     ///
     /// Returns `true` if the scroll offset has changed.
     pub fn scroll(&mut self, delta: Vec2, layout_size: Size) -> bool {
-        self.scroll_component.scroll(delta, layout_size)
+        self.scroll_component.scroll_by(delta, layout_size)
+    }
+
+    /// Scroll to this position on a particular axis.
+    ///
+    /// Returns `true` if the scroll offset has changed.
+    pub fn scroll_to_direction(&mut self, axis: Axis, position: f64, size: Size) -> bool{
+        self.scroll_component.scroll_on_axis(axis, position, size)
+    }
+
+    /// Return the scroll offset on a particular axis
+    pub fn offset_for_axis(&self, axis: Axis) -> f64{
+        self.scroll_component.offset_for_axis(axis)
     }
 }
 
@@ -144,7 +169,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
             .set_layout_rect(ctx, data, env, child_size.to_rect());
 
         let self_size = bc.constrain(child_size);
-        let _ = self.scroll_component.scroll(Vec2::new(0.0, 0.0), self_size);
+        let _ = self.scroll_component.scroll_by(Vec2::new(0.0, 0.0), self_size);
         self_size
     }
 
@@ -165,3 +190,64 @@ fn log_size_warnings(size: Size) {
         log::warn!("Scroll widget's child has an infinite height.");
     }
 }
+
+pub struct ScrollToProperty<T, W> {
+    direction: Axis, // We have no public direction/axis type, but two private ones. Sigh.
+    phantom_t: PhantomData<T>,
+    phantom_w: PhantomData<W>,
+}
+
+impl<T, W> ScrollToProperty<T, W> {
+    pub fn new(direction: Axis) -> Self {
+        ScrollToProperty {
+            direction,
+            phantom_t: Default::default(),
+            phantom_w: Default::default(),
+        }
+    }
+}
+
+impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
+    type Controlling = Scroll<T, W>;
+    type Value = f64;
+    type Change = ();
+
+    fn write_prop(
+        &self,
+        controlled: &mut Self::Controlling,
+        ctx: &mut UpdateCtx,
+        position: &Self::Value,
+        _env: &Env,
+    ) {
+        controlled.scroll_to_direction(self.direction, *position, ctx.size());
+        ctx.request_paint()
+    }
+
+    fn append_changes(
+        &self,
+        controlled: &Self::Controlling,
+        field_val: &Self::Value,
+        change: &mut Option<Self::Change>,
+        _env: &Env,
+    ) {
+        if !controlled
+            .offset_for_axis(self.direction)
+            .same(field_val)
+        {
+            *change = Some(())
+        }
+    }
+
+    fn update_data_from_change(
+        &self,
+        controlled: &Self::Controlling,
+        _ctx: &EventCtx,
+        field: &mut Self::Value,
+        _change: Self::Change,
+        _env: &Env,
+    ) {
+        *field = controlled.offset_for_axis(self.direction)
+    }
+}
+
+impl<T, W> Bindable for Scroll<T, W> {}

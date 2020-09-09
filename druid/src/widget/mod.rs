@@ -80,7 +80,7 @@ pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
 pub use rotated::Rotated;
 pub use scope::{DefaultScopePolicy, LensScopeTransfer, Scope, ScopePolicy, ScopeTransfer};
-pub use scroll::{Scroll, ScrollTo, ScrollToProperty, SCROLL_TO};
+pub use scroll::{Scroll, ScrollToProperty};
 pub use sized_box::SizedBox;
 pub use slider::Slider;
 pub use spinner::Spinner;

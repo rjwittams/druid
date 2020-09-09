@@ -98,7 +98,7 @@ impl Widget<String> for LensedWidget {
 
         if let Ok(layout) = ctx
             .text()
-            .new_text_layout(&format!(
+            .new_text_layout(format!(
                 "Data: {} Field: {} Font: {} Found: {}",
                 data, self.text, self.font_name, found
             ))
