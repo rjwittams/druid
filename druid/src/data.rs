@@ -388,6 +388,12 @@ impl Data for piet::Color {
     }
 }
 
+impl Data for piet::FontFamily {
+    fn same(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
 #[cfg(feature = "im")]
 impl<T: Data> Data for im::Vector<T> {
     fn same(&self, other: &Self) -> bool {
