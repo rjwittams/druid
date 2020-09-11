@@ -1,5 +1,5 @@
 use crate::app::{PendingWindow, WindowConfig};
-use crate::lens::UnitLens;
+use crate::lens::Unit;
 use crate::win_handler::AppState;
 use crate::{Data, Widget, WidgetExt, WidgetId, WindowHandle, WindowId};
 use druid_shell::Error;
@@ -33,7 +33,7 @@ impl SubWindowRequirement {
         app_state: &mut AppState<T>,
     ) -> Result<WindowHandle, Error> {
         let pending =
-            PendingWindow::new_from_boxed(self.sub_window_root.lens(UnitLens::default()).boxed());
+            PendingWindow::new_from_boxed(self.sub_window_root.lens(Unit::default()).boxed());
         app_state.build_native_window(self.window_id, pending, self.window_config)
     }
 }

@@ -576,20 +576,24 @@ where
     }
 }
 
+/// A `Lens` that always yields ().
+///
+/// This is useful when you wish to have a display only widget, require a type-erased widget, or
+/// obtain app data out of band and ignore your input. (E.g sub-windows)
 #[derive(Debug, Copy, Clone)]
-pub struct UnitLens<T> {
+pub struct Unit<T> {
     phantom_t: PhantomData<T>,
 }
 
-impl<T> Default for UnitLens<T> {
+impl<T> Default for Unit<T> {
     fn default() -> Self {
-        UnitLens {
+        Unit {
             phantom_t: Default::default(),
         }
     }
 }
 
-impl<T> Lens<T, ()> for UnitLens<T> {
+impl<T> Lens<T, ()> for Unit<T> {
     fn with<V, F: FnOnce(&()) -> V>(&self, _data: &T, f: F) -> V {
         f(&())
     }

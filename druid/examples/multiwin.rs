@@ -16,13 +16,12 @@
 
 use druid::widget::prelude::*;
 use druid::widget::{
-    Align, BackgroundBrush, Button, Controller, ControllerHost, Flex, Label, Padding, TextBox,
+    Align, BackgroundBrush, Button, Controller, ControllerHost, Flex, Label, Padding,
 };
 use druid::Target::Global;
 use druid::{
     commands as sys_cmds, AppDelegate, AppLauncher, Application, Color, Command, ContextMenu, Data,
-    DelegateCtx, Lens, LocalizedString, MenuDesc, MenuItem, Selector, Target, WidgetExt,
-    WindowDesc, WindowId,
+    DelegateCtx, LocalizedString, MenuDesc, MenuItem, Selector, Target, WindowDesc, WindowId,
 };
 use log::info;
 
@@ -31,12 +30,11 @@ const MENU_INCREMENT_ACTION: Selector = Selector::new("menu-increment-action");
 const MENU_DECREMENT_ACTION: Selector = Selector::new("menu-decrement-action");
 const MENU_SWITCH_GLOW_ACTION: Selector = Selector::new("menu-switch-glow");
 
-#[derive(Debug, Clone, Default, Data, Lens)]
+#[derive(Debug, Clone, Default, Data)]
 struct State {
     menu_count: usize,
     selected: usize,
     glow_hot: bool,
-    word: String,
 }
 
 pub fn main() {
@@ -71,18 +69,14 @@ fn ui_builder() -> impl Widget<State> {
 
     let mut col = Flex::column();
     col.add_flex_child(Align::centered(Padding::new(5.0, label)), 1.0);
-
     let mut row = Flex::row();
     row.add_child(Padding::new(5.0, inc_button));
     row.add_child(Padding::new(5.0, dec_button));
     col.add_flex_child(Align::centered(row), 1.0);
-
     let mut row = Flex::row();
     row.add_child(Padding::new(5.0, new_button));
     row.add_child(Padding::new(5.0, quit_button));
     col.add_flex_child(Align::centered(row), 1.0);
-    col.add_child(TextBox::new().lens(State::word));
-
     let content = ControllerHost::new(col, ContextMenuController);
     Glow::new(content)
 }

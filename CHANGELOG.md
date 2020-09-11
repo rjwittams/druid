@@ -17,7 +17,7 @@ You can find its changes [documented below](#060---2020-06-01).
 - Windows: WindowHandle: Added handle_titlebar(), Allowing a custom titlebar to behave like the OS one. ([#1037] by [@rhzk])
 - Windows: Added window levels to deal with windows that should stay on top ([#1037] by [@rjwittams])
 - Sub windows: Allow opening windows that share state with arbitrary parts of the widget hierarchy ([#1037] by [@rjwittams])
-- `OPEN_PANEL_CANCELLED` and `SAVE_PANEL_CANCELLED` commands. ([#1061] by @cmyr
+- `OPEN_PANEL_CANCELLED` and `SAVE_PANEL_CANCELLED` commands. ([#1061] by @cmyr)
 - Export `Image` and `ImageData` by default. ([#1011] by [@covercash2])
 - Re-export `druid_shell::Scalable` under `druid` namespace. ([#1075] by [@ForLoveOfCats])
 - `TextBox` now supports ctrl and shift hotkeys. ([#1076] by [@vkahl])

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use druid::commands::CLOSE_WINDOW;
-use druid::lens::UnitLens;
+use druid::lens::Unit;
 use druid::widget::{
     Align, Button, Controller, ControllerHost, Flex, Label, SubWindowHost, TextBox,
 };
@@ -349,7 +349,7 @@ fn build_root_widget() -> impl Widget<HelloState> {
     // arrange the two widgets vertically, with some padding
     let layout = Flex::column()
         .with_child(label)
-        .with_flex_child(ScreenThing.lens(UnitLens::default()).padding(5.), 1.)
+        .with_flex_child(ScreenThing.lens(Unit::default()).padding(5.), 1.)
         .with_spacer(VERTICAL_WIDGET_SPACING)
         .with_child(textbox)
         .with_child(button);

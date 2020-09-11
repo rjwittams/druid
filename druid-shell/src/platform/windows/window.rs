@@ -1282,7 +1282,7 @@ impl WindowBuilder {
         self.state = state;
     }
 
-    pub fn set_level(&self, _level:WindowLevel) {
+    pub fn set_level(&mut self, _level:WindowLevel) {
         log::warn!("WindowBuilder::set_level  is currently unimplemented for Windows platforms.");
     }
 
