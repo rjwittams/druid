@@ -25,7 +25,8 @@ use crate::piet::{Piet, PietText, RenderContext};
 use crate::shell::Region;
 use crate::{
     commands, Affine, Command, ContextMenu, Cursor, ExtEventSink, Insets, MenuDesc, Point, Rect,
-    SingleUse, Size, SubWindowRequirement, Target, TimerToken, WidgetId, WindowDesc, WindowHandle, WindowId,
+    SingleUse, Size, SubWindowRequirement, Target, TimerToken, WidgetId, WindowDesc, WindowHandle,
+    WindowId,
 };
 
 /// A macro for implementing methods on multiple contexts.
@@ -326,12 +327,8 @@ impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, 
             self.widget_state.add_sub_window_host(id);
         }
 
-        self.submit_command(
-            commands::NEW_SUB_WINDOW.with(SingleUse::new(requirement)),
-            None,
-        );
+        self.submit_command(commands::NEW_SUB_WINDOW.with(SingleUse::new(requirement)));
     }
-
 });
 
 // methods on event, update, and lifecycle

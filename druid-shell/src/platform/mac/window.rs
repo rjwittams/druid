@@ -55,7 +55,6 @@ use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
 use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
-use crate::window;
 use crate::{Error, WindowState};
 
 #[allow(non_upper_case_globals)]
@@ -187,7 +186,6 @@ impl WindowBuilder {
     }
 
     pub fn set_level(&mut self, level:WindowLevel) {
-        log::info!("Set level mac builder {:?}", level);
         self.level = Some(level);
     }
 
@@ -984,7 +982,6 @@ impl WindowHandle {
 
     pub fn set_level(&self, level: WindowLevel) {
         unsafe {
-            log::info!("Setting level {:?}", level);
             let level = levels::from_window_level(level);
             let window: id = msg_send![*self.nsview.load(), window];
             let () = msg_send![window, setLevel: level ];

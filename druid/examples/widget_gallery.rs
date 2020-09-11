@@ -23,7 +23,7 @@ use druid::{
     AppLauncher, Color, Data, Lens, Rect, Widget, WidgetExt, WidgetPod, WindowDesc,
 };
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(feature = "wasm32"))]
 use druid::widget::{Svg, SvgData};
 
 const XI_IMAGE: &[u8] = include_bytes!("assets/xi.image");

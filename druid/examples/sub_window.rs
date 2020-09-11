@@ -14,13 +14,15 @@
 
 use druid::commands::CLOSE_WINDOW;
 use druid::lens::UnitLens;
-use druid::widget::{Align, Button, Controller, ControllerHost, Flex, Label, TextBox, SubWindowHost};
+use druid::widget::{
+    Align, Button, Controller, ControllerHost, Flex, Label, SubWindowHost, TextBox,
+};
 use druid::{
     theme, Affine, AppLauncher, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, Lens,
     LensExt, LifeCycle, LifeCycleCtx, LocalizedString, PaintCtx, Point, Rect, RenderContext, Size,
     TimerToken, UpdateCtx, Widget, WidgetExt, WindowConfig, WindowDesc, WindowId,
 };
-use druid_shell::piet::{Text};
+use druid_shell::piet::Text;
 use druid_shell::{Screen, WindowLevel};
 use instant::{Duration, Instant};
 use piet_common::{TextLayout, TextLayoutBuilder};
@@ -161,7 +163,7 @@ impl<T, W: Widget<T>> Controller<T, W> for TooltipController {
                     Event::MouseMove(me) if !ctx.is_hot() => {
                         // TODO another timer on leaving
                         log::info!("Sending close window for {:?}", win_id);
-                        ctx.submit_command(CLOSE_WINDOW, *win_id);
+                        ctx.submit_command(CLOSE_WINDOW.to(*win_id));
                         Some(TooltipState::Waiting {
                             last_move: now,
                             timer_expire: now + wait_duration,
@@ -194,7 +196,7 @@ impl<T, W: Widget<T>> Controller<T, W> for TooltipController {
         match event {
             LifeCycle::HotChanged(false) => {
                 if let TooltipState::Showing(win_id) = self.state {
-                    ctx.submit_command(CLOSE_WINDOW, win_id);
+                    ctx.submit_command(CLOSE_WINDOW.to(win_id));
                 }
                 self.state = TooltipState::Fresh;
             }
@@ -280,24 +282,29 @@ impl Widget<()> for ScreenThing {
         if all.width() > 0. && all.height() > 0. {
             let trans = Affine::scale(f64::min(sz.width / all.width(), sz.height / all.height()))
                 * Affine::translate(all.origin().to_vec2()).inverse();
-            if let Some(font) = ctx
-                .text()
-                .font_family(env.get(theme::FONT_NAME)) {
-                for (i, mon) in monitors.iter().enumerate() {
-                    let vr = mon.virtual_rect();
-                    let tr = trans.transform_rect_bbox(vr);
-                    ctx.stroke(tr, &Color::WHITE, 1.0);
+            let font = env.get(theme::UI_FONT).family;
 
-                    if let Ok(tl) = ctx
-                        .text()
-                        .new_text_layout(&format!("{}:{}x{}@{},{}", i, vr.width(), vr.height(), vr.x0, vr.y0), )
-                        .max_width(tr.width() - 5., )
-                        .font(font.clone(), env.get(theme::TEXT_SIZE_NORMAL))
-                        .text_color(Color::WHITE)
-                        .build() {
-                        ctx.draw_text(&tl, tr.center() - tl.size().to_vec2() * 0.5
-                        );
-                    }
+            for (i, mon) in monitors.iter().enumerate() {
+                let vr = mon.virtual_rect();
+                let tr = trans.transform_rect_bbox(vr);
+                ctx.stroke(tr, &Color::WHITE, 1.0);
+
+                if let Ok(tl) = ctx
+                    .text()
+                    .new_text_layout(format!(
+                        "{}:{}x{}@{},{}",
+                        i,
+                        vr.width(),
+                        vr.height(),
+                        vr.x0,
+                        vr.y0
+                    ))
+                    .max_width(tr.width() - 5.)
+                    .font(font.clone(), env.get(theme::TEXT_SIZE_NORMAL))
+                    .text_color(Color::WHITE)
+                    .build()
+                {
+                    ctx.draw_text(&tl, tr.center() - tl.size().to_vec2() * 0.5);
                 }
             }
         }

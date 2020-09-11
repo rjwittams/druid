@@ -2,9 +2,9 @@ use crate::app::WindowConfig;
 use crate::command::sys::SUB_WINDOW_PARENT_TO_HOST;
 use crate::commands::SUB_WINDOW_HOST_TO_PARENT;
 use crate::{
-    BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
-    Point, Rect, Size, SubWindowRequirement, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
-    WindowId,
+    BoxConstraints, Command, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx,
+    PaintCtx, Point, Rect, Size, SubWindowRequirement, UpdateCtx, Widget, WidgetExt, WidgetId,
+    WidgetPod, WindowId,
 };
 use std::ops::Deref;
 
@@ -57,7 +57,6 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
                     .get_unchecked(SUB_WINDOW_PARENT_TO_HOST)
                     .downcast_ref::<U>()
                 {
-
                     self.data = update.deref().clone();
                     ctx.request_update();
                 } else {
@@ -77,10 +76,11 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
                 };
                 self.child.update(&mut update_ctx, &self.data, env);
                 if self.sync && !old.same(&self.data) {
-                    ctx.submit_command(
-                        SUB_WINDOW_HOST_TO_PARENT.with(Box::new(self.data.clone())),
+                    ctx.submit_command(Command::new(
+                        SUB_WINDOW_HOST_TO_PARENT,
+                        Box::new(self.data.clone()),
                         self.parent_id,
-                    )
+                    ))
                 }
             }
         }
@@ -91,7 +91,7 @@ impl<U: Data, W: Widget<U>> Widget<()> for SubWindowHost<U, W> {
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &(), _data: &(), env: &Env) {
-        if ctx.has_requested_update(){
+        if ctx.has_requested_update() {
             // Should env be copied from the parent too? Possibly
             self.child.update(ctx, &self.data, env);
         }

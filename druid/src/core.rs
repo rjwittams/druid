@@ -873,9 +873,9 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
         if let Some(hosts) = &self.state.sub_window_hosts {
             for host in hosts {
                 let cloned: T = (*data).clone();
-                let command = SUB_WINDOW_PARENT_TO_HOST.with(Box::new(cloned));
+                let command = Command::new(SUB_WINDOW_PARENT_TO_HOST, Box::new(cloned), *host);
 
-                ctx.submit_command(command, *host)
+                ctx.submit_command(command)
             }
         }
 

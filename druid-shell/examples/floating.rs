@@ -15,14 +15,15 @@
 use std::any::Any;
 use std::collections::HashMap;
 
-use druid_shell::kurbo::{Line, Point, Rect, Size};
+use druid_shell::kurbo::{Line, Point, Size};
 use druid_shell::piet::{Color, RenderContext};
 
 use druid_shell::{
     Application, Cursor, FileDialogOptions, FileSpec, HotKey, KbKey, KeyEvent, Menu, MouseEvent,
-    Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowState, Region
+    Region, Screen, SysMods, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowState,
 };
 use piet_common::Piet;
+use simple_logger::SimpleLogger;
 use std::time::Duration;
 
 const BG_COLOR: Color = Color::rgb8(0x27, 0x28, 0x22);
@@ -51,9 +52,7 @@ impl WinHandler for HelloState {
         self.handle = handle.clone();
     }
 
-
-
-    fn paint(&mut self, piet: &mut piet_common::Piet, _: &Region) -> () {
+    fn paint(&mut self, piet: &mut piet_common::Piet, _: &Region) {
         let rect = self.size.to_rect();
         piet.fill(rect, &BG_COLOR);
         piet.stroke(Line::new((10.0, 50.0), (90.0, 90.0)), &FG_COLOR, 1.0);
@@ -144,9 +143,7 @@ impl WinHandler for HelloState {
         self
     }
 
-    fn prepare_paint(&mut self) {
-
-    }
+    fn prepare_paint(&mut self) {}
 }
 
 #[derive(Default)]
@@ -164,7 +161,7 @@ impl FloatingPanel {
         child_position_on_parent: Point,
         size: Size,
     ) -> WindowHandle {
-        let mut builder = WindowBuilder::new(app.clone());
+        let mut builder = WindowBuilder::new(app);
         builder.set_handler(Box::new(FloatingPanel::default()));
         builder.show_titlebar(false);
         builder.set_size(size);
@@ -173,9 +170,8 @@ impl FloatingPanel {
         let child_pos_in_window = parent_pos + child_position_on_parent.to_vec2();
 
         // TODO allow putting it on the builder too
+        builder.set_position(child_pos_in_window);
         let panel = builder.build().unwrap();
-
-        panel.set_position(child_pos_in_window);
 
         panel.show();
         panel
@@ -191,11 +187,9 @@ impl WinHandler for FloatingPanel {
         self.size = size;
     }
 
-    fn prepare_paint(&mut self) {
+    fn prepare_paint(&mut self) {}
 
-    }
-
-    fn paint(&mut self, piet: &mut Piet, _invalid: &Region) -> () {
+    fn paint(&mut self, piet: &mut Piet, _invalid: &Region) {
         let rect = self.size.to_rect();
         piet.fill(rect, &Color::WHITE);
         piet.stroke(Line::new(rect.origin(), (rect.x1, rect.y1)), &FG_COLOR, 1.0);
@@ -209,7 +203,9 @@ impl WinHandler for FloatingPanel {
 }
 
 fn main() {
-    simple_logger::init().expect("Failed to init simple logger");
+    SimpleLogger::new()
+        .init()
+        .expect("Failed to init simple logger");
     let mut file_menu = Menu::new();
     file_menu.add_item(
         0x100,

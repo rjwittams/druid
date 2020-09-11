@@ -31,9 +31,9 @@ use crate::util::ExtendDrain;
 use crate::widget::LabelText;
 use crate::win_handler::RUN_COMMANDS_TOKEN;
 use crate::{
-    BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, InternalEvent, InternalLifeCycle,
-    LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx, TimerToken, UpdateCtx, Widget,
-    WidgetId, WidgetPod
+    BoxConstraints, Command, Data, Env, Event, EventCtx, ExtEventSink, InternalEvent,
+    InternalLifeCycle, LayoutCtx, LifeCycle, LifeCycleCtx, MenuDesc, PaintCtx, TimerToken,
+    UpdateCtx, Widget, WidgetId, WidgetPod,
 };
 
 /// A unique identifier for a window.
