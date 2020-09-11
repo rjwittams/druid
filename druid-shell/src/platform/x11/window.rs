@@ -42,17 +42,17 @@ use crate::error::Error as ShellError;
 use crate::keyboard::{KeyEvent, KeyState, Modifiers};
 use crate::kurbo::{Point, Rect, Size, Vec2};
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
-use crate::piet::{Piet, RenderContext};
+use crate::piet::{Piet, PietText, RenderContext};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::window::{IdleToken, Text, TimerToken, WinHandler};
+use crate::window::{IdleToken, TimerToken, WinHandler};
+use crate::window;
 
 use super::application::Application;
 use super::keycodes;
 use super::menu::Menu;
 use super::util::{self, Timer};
 
-use crate::window::WindowState as WindowSizeState; // Avoid name conflict.
 
 /// A version of XCB's `xcb_visualtype_t` struct. This was copied from the [example] in x11rb; it
 /// is used to interoperate with cairo.
@@ -133,11 +133,11 @@ impl WindowBuilder {
         log::warn!("WindowBuilder::set_position is currently unimplemented for X11 platforms.");
     }
 
-    pub fn set_level(&self, _level:WindowLevel) {
+    pub fn set_level(&self, _level: window::WindowLevel) {
         log::warn!("WindowBuilder::set_level  is currently unimplemented for X11 platforms.");
     }
 
-    pub fn set_window_state(&self, _state: WindowSizeState) {
+    pub fn set_window_state(&self, _state: window::WindowState) {
         log::warn!("WindowBuilder::set_window_state is currently unimplemented for X11 platforms.");
     }
 
@@ -920,7 +920,7 @@ impl Window {
         if client_message.type_ == self.atoms.WM_PROTOCOLS && client_message.format == 32 {
             let protocol = client_message.data.as_data32()[0];
             if protocol == self.atoms.WM_DELETE_WINDOW {
-                self.close();
+                self.handler.borrow_mut().request_close();
             }
         }
         Ok(())
@@ -1386,13 +1386,13 @@ impl WindowHandle {
         Size::new(0.0, 0.0)
     }
 
-    pub fn set_window_state(&self, _state: WindowSizeState) {
+    pub fn set_window_state(&self, _state: window::WindowState) {
         log::warn!("WindowHandle::set_window_state is currently unimplemented for X11 platforms.");
     }
 
-    pub fn get_window_state(&self) -> WindowSizeState {
+    pub fn get_window_state(&self) -> window::WindowState {
         log::warn!("WindowHandle::get_window_state is currently unimplemented for X11 platforms.");
-        WindowSizeState::RESTORED
+        window::WindowState::RESTORED
     }
 
     pub fn handle_titlebar(&self, _val: bool) {
@@ -1447,9 +1447,8 @@ impl WindowHandle {
         }
     }
 
-    pub fn text(&self) -> Text {
-        // I'm not entirely sure what this method is doing here, so here's a Text.
-        Text::new()
+    pub fn text(&self) -> PietText {
+        PietText::new()
     }
 
     pub fn request_timer(&self, deadline: Instant) -> TimerToken {

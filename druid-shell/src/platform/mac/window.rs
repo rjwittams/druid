@@ -54,7 +54,8 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
+use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window;
 use crate::{Error, WindowState};
 
 #[allow(non_upper_case_globals)]
@@ -920,7 +921,7 @@ impl WindowHandle {
         token
     }
 
-    pub fn text(&self) -> Text {
+    pub fn text(&self) -> PietText {
         let view = self.nsview.load();
         unsafe {
             if let Some(view) = (*view).as_ref() {

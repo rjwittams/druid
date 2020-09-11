@@ -62,10 +62,9 @@ pub use menu::Menu;
 pub use mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 pub use region::Region;
 pub use scale::{Scalable, Scale, ScaledArea};
-pub use screen::Monitor;
-pub use screen::Screen;
+pub use screen::{Monitor, Screen};
 pub use window::{
-    IdleHandle, IdleToken, Text, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowLevel,
+    IdleHandle, IdleToken, TimerToken, WinHandler, WindowBuilder, WindowHandle, WindowLevel,
     WindowState,
 };
 

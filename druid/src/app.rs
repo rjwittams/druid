@@ -141,9 +141,11 @@ impl<T: Data> AppLauncher<T> {
     /// Panics if the logger fails to initialize.
     pub fn use_simple_logger(self) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
-        simple_logger::init().expect("Failed to init simple logger");
+        simple_logger::SimpleLogger::new()
+            .init()
+            .expect("Failed to initialize logger.");
         #[cfg(target_arch = "wasm32")]
-        console_log::init_with_level(log::Level::Trace).expect("Failed to init simple logger");
+        console_log::init_with_level(log::Level::Trace).expect("Failed to initialize logger.");
         self
     }
 
@@ -413,13 +415,13 @@ impl<T: Data> WindowDesc<T> {
         self
     }
 
-    /// Set whether the window should be resizable.
+    /// Builder-style method to set whether this window can be resized.
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.config = self.config.resizable(resizable);
         self
     }
 
-    /// Set whether the window should have a titlebar and decorations.
+    /// Builder-style method to set whether this window's titlebar is visible.
     pub fn show_titlebar(mut self, show_titlebar: bool) -> Self {
         self.config = self.config.show_titlebar(show_titlebar);
         self

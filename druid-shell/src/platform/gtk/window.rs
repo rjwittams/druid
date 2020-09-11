@@ -33,7 +33,7 @@ use gtk::prelude::*;
 use gtk::{AccelGroup, ApplicationWindow, DrawingArea};
 
 use crate::kurbo::{Point, Rect, Size, Vec2};
-use crate::piet::{Piet, RenderContext};
+use crate::piet::{Piet, PietText, RenderContext};
 
 use crate::common_util::IdleCallback;
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
@@ -42,15 +42,14 @@ use crate::keyboard::{KbKey, KeyEvent, KeyState, Modifiers};
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
-use crate::window::{IdleToken, Text, TimerToken, WinHandler, WindowLevel};
+use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window;
 
 use super::application::Application;
 use super::dialog;
 use super::keycodes;
 use super::menu::Menu;
 use super::util;
-
-use crate::window::WindowState as WindowSizeState; // Avoid name conflict.
 
 /// The platform target DPI.
 ///
@@ -192,7 +191,7 @@ impl WindowBuilder {
         self.level = Some(level);
     }
 
-    pub fn set_window_state(&mut self, state: WindowSizeState) {
+    pub fn set_window_state(&mut self, window::WindowState) {
         self.state = Some(state);
     }
 
@@ -739,7 +738,7 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_window_state(&mut self, sz_state: WindowSizeState) {
+    pub fn set_window_state(&mut self, _state: window::WindowState) {
         let cur_state = self.get_window_state();
         log::info!("Set state to {:?} {:?}", sz_state, cur_state);
         if let Some(state) = self.state.upgrade(){
@@ -756,13 +755,12 @@ impl WindowHandle {
         }
     }
 
-    pub fn get_window_state(&self) -> WindowSizeState {
-
-        if let Some(state) = self.state.upgrade(){
-            if state.window.is_maximized(){
+    pub fn get_window_state(&self) -> window::WindowState {
+        if let Some(state) = self.state.upgrade() {
+            if state.window.is_maximized() {
                 return WindowSizeState::MAXIMIZED
-            }else{
-                if let Some(window ) = state.window.get_parent_window(){
+            } else {
+                if let Some(window) = state.window.get_parent_window() {
                     let state = window.get_state();
                     if (state & gdk::WindowState::ICONIFIED) == gdk::WindowState::ICONIFIED {
                         return WindowSizeState::MINIMIZED
@@ -816,8 +814,8 @@ impl WindowHandle {
         }
     }
 
-    pub fn text(&self) -> Text {
-        Text::new()
+    pub fn text(&self) -> PietText {
+        PietText::new()
     }
 
     pub fn request_timer(&self, deadline: Instant) -> TimerToken {
