@@ -17,7 +17,6 @@
 use crate::screen::Monitor;
 use kurbo::{Size, Rect, Point};
 use gdk::{Display};
-use gdk;
 
 
 fn translate_gdk_rectangle(r: gdk::Rectangle)->Rect{

@@ -251,12 +251,6 @@ impl_context_method!(
 
 // methods on event, update, and lifecycle
 impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, {
-    #[deprecated(since = "0.5.0", note = "use request_paint instead")]
-    #[allow(missing_docs)]
-    pub fn invalidate(&mut self) {
-        self.request_paint();
-    }
-
     /// Request a [`paint`] pass. This is equivalent to calling
     /// [`request_paint_rect`] for the widget's [`paint_rect`].
     ///
@@ -694,7 +688,7 @@ impl<'a> ContextState<'a> {
 
     fn submit_command(&mut self, command: Command) {
         self.command_queue
-            .push_back(command.default_to(self.window_id));
+            .push_back(command.default_to(self.window_id.into()));
     }
 
     fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>) {

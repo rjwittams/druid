@@ -24,7 +24,7 @@ use cocoa::appkit::NSScreen;
 pub(crate) fn get_monitors() -> Vec<Monitor> {
     unsafe {
         let screens: id = msg_send![class![NSScreen], screens];
-        let mut monitors_build = Vec::<(Rect, Rect)>::new();
+        let mut monitors = Vec::<(Rect, Rect)>::new();
         let mut total_rect = Rect::ZERO;
 
         for idx in 0..screens.count() {
@@ -34,18 +34,18 @@ pub(crate) fn get_monitors() -> Vec<Monitor> {
             let frame_r = Rect::from_origin_size((frame.origin.x, frame.origin.y), (frame.size.width,  frame.size.height));
             let vis_frame = NSScreen::visibleFrame(screen);
             let vis_frame_r = Rect::from_origin_size(  (vis_frame.origin.x, vis_frame.origin.y), (vis_frame.size.width,  vis_frame.size.height) );
-            monitors_build.push( (frame_r,  vis_frame_r) );
+            monitors.push( (frame_r, vis_frame_r) );
             total_rect = total_rect.union(frame_r)
         }
-        // TODO save this total_rect.y1 for screen coord transformations
+        // TODO save this total_rect.y1 for screen coord transformations in get_position/set_position
         // and invalidate on monitor changes
-        transform_coords(monitors_build, total_rect.y1)
+        transform_coords(monitors, total_rect.y1)
     }
 }
 
 fn transform_coords(monitors_build: Vec<(Rect, Rect)>, max_y: f64) -> Vec<Monitor> {
 
-    //Flip y and move to opposite horizontal edges (On mac, Y goes up and origin is bottom corner)
+    //Flip y and move to opposite horizontal edges (On mac, Y goes up and origin is bottom left corner)
     let fix_rect = |frame: &Rect| Rect::new(frame.x0, (max_y - frame.y0) - frame.height(),
                                            frame.x1, (max_y - frame.y1) + frame.height());
 

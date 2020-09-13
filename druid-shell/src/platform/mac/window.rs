@@ -54,8 +54,9 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
-use crate::{Error, WindowState};
+use crate::window::{IdleToken, TimerToken, WinHandler, WindowState};
+use crate::Error;
+
 
 #[allow(non_upper_case_globals)]
 const NSWindowDidBecomeKeyNotification: &str = "NSWindowDidBecomeKeyNotification";
@@ -120,7 +121,6 @@ pub(crate) struct WindowBuilder {
     window_state: Option<WindowState>,
     resizable: bool,
     show_titlebar: bool,
-    borderless: bool // This may never be needed
 }
 
 #[derive(Clone)]
@@ -208,22 +208,16 @@ impl WindowBuilder {
     pub fn build(self) -> Result<WindowHandle, Error> {
         assert_main_thread();
         unsafe {
-            let style_mask = if self.borderless {
-                NSWindowStyleMask::NSBorderlessWindowMask
-            }else {
-                let mut style_mask =
-                    NSWindowStyleMask::NSClosableWindowMask
+            let mut style_mask = NSWindowStyleMask::NSClosableWindowMask
                         | NSWindowStyleMask::NSMiniaturizableWindowMask;
 
-                if self.show_titlebar {
-                    style_mask |= NSWindowStyleMask::NSTitledWindowMask;
-                }
+            if self.show_titlebar {
+                style_mask |= NSWindowStyleMask::NSTitledWindowMask;
+            }
 
-                if self.resizable {
-                    style_mask |= NSWindowStyleMask::NSResizableWindowMask;
-                }
-                style_mask
-            };
+            if self.resizable {
+                style_mask |= NSWindowStyleMask::NSResizableWindowMask;
+            }
 
             let rect = NSRect::new(
                 NSPoint::new(0., 0.),
@@ -957,7 +951,8 @@ impl WindowHandle {
     // Need to translate mac y coords, as they start from bottom left
     pub fn set_position(&self, position: Point) {
         unsafe {
-            let screen_height = crate::Screen::get_display_rect().height(); // TODO this should be the max y in orig mac coords
+            // TODO this should be the max y in orig mac coords
+            let screen_height = crate::Screen::get_display_rect().height();
             let window: id =  msg_send![*self.nsview.load(), window];
             let frame :NSRect = msg_send![ window , frame];
 
@@ -970,7 +965,8 @@ impl WindowHandle {
 
     pub fn get_position(&self) -> Point {
         unsafe {
-            let screen_height = crate::Screen::get_display_rect().height(); // TODO
+            // TODO this should be the max y in orig mac coords
+            let screen_height = crate::Screen::get_display_rect().height();
 
             let window: id =  msg_send![*self.nsview.load(), window];
             let current_frame:NSRect = msg_send![ window , frame];
@@ -978,7 +974,6 @@ impl WindowHandle {
             Point::new(current_frame.origin.x, screen_height - current_frame.origin.y - current_frame.size.height )
         }
     }
-
 
     pub fn set_level(&self, level: WindowLevel) {
         unsafe {

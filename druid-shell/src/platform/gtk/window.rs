@@ -738,17 +738,17 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_window_state(&mut self, _state: window::WindowState) {
-        let cur_state = self.get_window_state();
-        log::info!("Set state to {:?} {:?}", sz_state, cur_state);
+    pub fn set_window_state(&mut self, size_state: window::WindowState) {
+        use window::WindowState::{MINIMIZED, MAXIMIZED, RESTORED};
+        let cur_size_state = self.get_window_state();
         if let Some(state) = self.state.upgrade(){
-            match (sz_state, cur_state) {
+            match (size_state, cur_size_state) {
                 (s1, s2) if s1 == s2 => (),
-                (WindowSizeState::MAXIMIZED, _) => state.window.maximize(),
-                (WindowSizeState::MINIMIZED, _) => state.window.iconify(),
-                (WindowSizeState::RESTORED, WindowSizeState::MAXIMIZED) => state.window.unmaximize(),
-                (WindowSizeState::RESTORED, WindowSizeState::MINIMIZED) => state.window.deiconify(),
-                (WindowSizeState::RESTORED, WindowSizeState::RESTORED)=>() // Unreachable
+                (MAXIMIZED, _) => state.window.maximize(),
+                (MINIMIZED, _) => state.window.iconify(),
+                (RESTORED, MAXIMIZED) => state.window.unmaximize(),
+                (RESTORED, MINIMIZED) => state.window.deiconify(),
+                (RESTORED, RESTORED) => () // Unreachable
             }
 
             state.window.unmaximize();
@@ -756,19 +756,18 @@ impl WindowHandle {
     }
 
     pub fn get_window_state(&self) -> window::WindowState {
+        use window::WindowState::{MINIMIZED, MAXIMIZED, RESTORED};
         if let Some(state) = self.state.upgrade() {
             if state.window.is_maximized() {
-                return WindowSizeState::MAXIMIZED
-            } else {
-                if let Some(window) = state.window.get_parent_window() {
-                    let state = window.get_state();
-                    if (state & gdk::WindowState::ICONIFIED) == gdk::WindowState::ICONIFIED {
-                        return WindowSizeState::MINIMIZED
-                    }
+                return MAXIMIZED
+            } else if let Some(window) = state.window.get_parent_window() {
+                let state = window.get_state();
+                if (state & gdk::WindowState::ICONIFIED) == gdk::WindowState::ICONIFIED {
+                    return MINIMIZED
                 }
             }
         }
-        WindowSizeState::RESTORED
+        RESTORED
     }
 
     pub fn handle_titlebar(&self, _val: bool) {
