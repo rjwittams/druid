@@ -45,14 +45,13 @@ use crate::mouse::{Cursor, MouseButton, MouseButtons, MouseEvent};
 use crate::piet::{Piet, PietText, RenderContext};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::window::{IdleToken, TimerToken, WinHandler};
 use crate::window;
+use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
 
 use super::application::Application;
 use super::keycodes;
 use super::menu::Menu;
 use super::util::{self, Timer};
-
 
 /// A version of XCB's `xcb_visualtype_t` struct. This was copied from the [example] in x11rb; it
 /// is used to interoperate with cairo.
@@ -133,7 +132,7 @@ impl WindowBuilder {
         log::warn!("WindowBuilder::set_position is currently unimplemented for X11 platforms.");
     }
 
-    pub fn set_level(&self, _level: window::WindowLevel) {
+    pub fn set_level(&mut self, _level: window::WindowLevel) {
         log::warn!("WindowBuilder::set_level  is currently unimplemented for X11 platforms.");
     }
 
@@ -1373,7 +1372,7 @@ impl WindowHandle {
         Point::new(0.0, 0.0)
     }
 
-    pub fn set_level(&self, _level:WindowLevel) {
+    pub fn set_level(&self, _level: WindowLevel) {
         log::warn!("WindowHandle::set_level  is currently unimplemented for X11 platforms.");
     }
 
