@@ -17,13 +17,12 @@
 use std::f64::INFINITY;
 
 use crate::kurbo::{Point, Rect, Size, Vec2};
+use crate::widget::{Axis, Bindable, BindableProperty};
 use crate::{
     scroll_component::*, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, UpdateCtx, Widget, WidgetPod,
 };
-use crate::widget::{Axis, BindableProperty, Bindable};
 use std::marker::PhantomData;
-
 
 /// A container that scrolls its contents.
 ///
@@ -125,7 +124,7 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     }
 
     /// Return the scroll offset on a particular axis
-    pub fn offset_for_axis(&self, axis: Axis) -> f64{
+    pub fn offset_for_axis(&self, axis: Axis) -> f64 {
         self.scroll_component.offset_for_axis(axis)
     }
 }
@@ -176,7 +175,9 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
             .set_layout_rect(ctx, data, env, child_size.to_rect());
 
         let self_size = bc.constrain(child_size);
-        let _ = self.scroll_component.scroll_by(Vec2::new(0.0, 0.0), self_size);
+        let _ = self
+            .scroll_component
+            .scroll_by(Vec2::new(0.0, 0.0), self_size);
         self.child.set_viewport_offset(self.offset());
         self_size
     }
@@ -238,10 +239,7 @@ impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
         change: &mut Option<Self::Change>,
         _env: &Env,
     ) {
-        if !controlled
-            .offset_for_axis(self.direction)
-            .same(field_val)
-        {
+        if !controlled.offset_for_axis(self.direction).same(field_val) {
             *change = Some(())
         }
     }

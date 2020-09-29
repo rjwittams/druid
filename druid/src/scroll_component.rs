@@ -19,10 +19,10 @@ use std::time::Duration;
 
 use crate::kurbo::{Affine, Point, Rect, RoundedRect, Size, Vec2};
 use crate::theme;
+use crate::widget::Axis;
 use crate::{
     Env, Event, EventCtx, LifeCycle, LifeCycleCtx, PaintCtx, Region, RenderContext, TimerToken,
 };
-use crate::widget::Axis;
 
 //TODO: Add this to env
 /// Minimum length for any scrollbar to be when measured on that
@@ -55,7 +55,7 @@ impl ScrollbarsEnabled {
     }
 }
 
-impl Default for ScrollbarsEnabled{
+impl Default for ScrollbarsEnabled {
     fn default() -> Self {
         ScrollbarsEnabled::Both
     }
@@ -181,21 +181,27 @@ impl ScrollComponent {
             content_size: Size::default(),
             scroll_offset: Vec2::new(0.0, 0.0),
             scrollbars: ScrollbarsState::default(),
-            scrollbars_enabled: ScrollbarsEnabled::default()
+            scrollbars_enabled: ScrollbarsEnabled::default(),
         }
     }
 
     /// Update the scroll.
-   ///
-   /// Returns `true` if the scroll has been updated.
+    ///
+    /// Returns `true` if the scroll has been updated.
     pub fn scroll_by(&mut self, delta: Vec2, layout_size: Size) -> bool {
         self.scroll_to(self.scroll_offset + delta, layout_size)
     }
 
     pub fn scroll_to(&mut self, offset: Vec2, layout_size: Size) -> bool {
         let offset = Vec2::new(
-            offset.x.min(self.content_size.width - layout_size.width).max(0.0),
-            offset.y.min(self.content_size.height - layout_size.height).max(0.0),
+            offset
+                .x
+                .min(self.content_size.width - layout_size.width)
+                .max(0.0),
+            offset
+                .y
+                .min(self.content_size.height - layout_size.height)
+                .max(0.0),
         );
         if (offset - self.scroll_offset).hypot2() > 1e-12 {
             self.scroll_offset = offset;
@@ -356,7 +362,8 @@ impl ScrollComponent {
         if self
             .scrollbars_enabled
             .is_enabled(ScrollDirection::Vertical)
-            && viewport.height() < self.content_size.height {
+            && viewport.height() < self.content_size.height
+        {
             // Stretch hitbox to edge of widget
             let mut bounds = self.calc_vertical_bar_bounds(viewport, env);
             bounds.x1 = self.scroll_offset.x + viewport.width();
@@ -373,7 +380,8 @@ impl ScrollComponent {
         if self
             .scrollbars_enabled
             .is_enabled(ScrollDirection::Horizontal)
-            && viewport.width() < self.content_size.width {
+            && viewport.width() < self.content_size.width
+        {
             // Stretch hitbox to edge of widget
             let mut bounds = self.calc_horizontal_bar_bounds(viewport, env);
             bounds.y1 = self.scroll_offset.y + viewport.height();

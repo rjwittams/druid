@@ -160,8 +160,8 @@ fn build_inner_widget() -> impl Widget<InnerState> {
     // You can have a series of wrappers before the binding, and it will reach inside and get
     // the nearest Bindable widget to control. The wrappers must trivially implement BindableAccess
     let leader = Scroll::new(make_col(0))
-        .with_id(WidgetId::next())
         .lens(InnerState::text)
+        .with_id(WidgetId::next())
         .binding(InnerState::scroll_y.bind(ScrollToProperty::new(Axis::Vertical)));
     row.add_flex_child(leader, 0.5);
 

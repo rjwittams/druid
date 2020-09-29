@@ -60,14 +60,14 @@ impl<T: Data, W: Widget<T>> Widget<T> for IdentityWrapper<W> {
     }
 }
 
-impl<W> BindableAccess for IdentityWrapper<W> {
-    type Wrapped = W;
+impl<W: BindableAccess> BindableAccess for IdentityWrapper<W> {
+    type Wrapped = W::Wrapped;
 
     fn bindable(&self) -> &Self::Wrapped {
-        &self.inner
+        self.inner.bindable()
     }
 
     fn bindable_mut(&mut self) -> &mut Self::Wrapped {
-        &mut self.inner
+        self.inner.bindable_mut()
     }
 }

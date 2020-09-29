@@ -21,6 +21,7 @@
 use std::marker::PhantomData;
 
 use crate::widget::prelude::*;
+use crate::widget::BindableAccess;
 use crate::{Data, Lens};
 
 /// A wrapper for its widget subtree to have access to a part
@@ -108,5 +109,17 @@ where
 
     fn id(&self) -> Option<WidgetId> {
         self.inner.id()
+    }
+}
+
+impl<U, L, W: BindableAccess> BindableAccess for LensWrap<U, L, W> {
+    type Wrapped = W::Wrapped;
+
+    fn bindable(&self) -> &Self::Wrapped {
+        self.inner.bindable()
+    }
+
+    fn bindable_mut(&mut self) -> &mut Self::Wrapped {
+        self.inner.bindable_mut()
     }
 }
