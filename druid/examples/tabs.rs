@@ -1,25 +1,35 @@
+// Copyright 2020 The Druid Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use druid::im::Vector;
 use druid::widget::{
-    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, Padding, RadioGroup,
-    SizedBox, Split, TabInfo, Tabs, TabsOrientation, TabsPolicy, TabsTransition, TextBox,
-    ViewSwitcher,
+    Axis, Button, CrossAxisAlignment, Flex, Label, MainAxisAlignment, RadioGroup, Split, TabInfo,
+    Tabs, TabsEdge, TabsPolicy, TabsTransition, TextBox, ViewSwitcher,
 };
-use druid::{theme, AppLauncher, Color, Data, Env, Lens, LensExt, Widget, WidgetExt, WindowDesc};
+use druid::{theme, AppLauncher, Color, Data, Env, Lens, Widget, WidgetExt, WindowDesc};
 use instant::Duration;
 
-#[derive(Data, Clone)]
-struct Basic {}
-
 #[derive(Data, Clone, Lens)]
-struct Advanced {
+struct DynamicTabData {
     highest_tab: usize,
     removed_tabs: usize,
     tab_labels: Vector<usize>,
 }
 
-impl Advanced {
+impl DynamicTabData {
     fn new(highest_tab: usize) -> Self {
-        Advanced {
+        DynamicTabData {
             highest_tab,
             removed_tabs: 0,
             tab_labels: (1..=highest_tab).collect(),
@@ -40,6 +50,7 @@ impl Advanced {
         }
     }
 
+    // This provides a key that will monotonically increase as interactions occur.
     fn tabs_key(&self) -> (usize, usize) {
         (self.highest_tab, self.removed_tabs)
     }
@@ -48,17 +59,15 @@ impl Advanced {
 #[derive(Data, Clone, Lens)]
 struct TabConfig {
     axis: Axis,
-    cross: CrossAxisAlignment,
-    rotation: TabsOrientation,
+    edge: TabsEdge,
     transition: TabsTransition,
 }
 
 #[derive(Data, Clone, Lens)]
 struct AppState {
     tab_config: TabConfig,
-    basic: Basic,
-    advanced: Advanced,
-    text: String,
+    advanced: DynamicTabData,
+    first_tab_name: String,
 }
 
 pub fn main() {
@@ -71,13 +80,11 @@ pub fn main() {
     let initial_state = AppState {
         tab_config: TabConfig {
             axis: Axis::Horizontal,
-            cross: CrossAxisAlignment::Start,
-            rotation: TabsOrientation::Standard,
+            edge: TabsEdge::Leading,
             transition: Default::default(),
         },
-        basic: Basic {},
-        advanced: Advanced::new(2),
-        text: "Interesting placeholder".into(),
+        first_tab_name: "First tab".into(),
+        advanced: DynamicTabData::new(2),
     };
 
     // start the application
@@ -88,68 +95,61 @@ pub fn main() {
 }
 
 fn build_root_widget() -> impl Widget<AppState> {
-    fn decor<T: Data>(label: Label<T>) -> SizedBox<T> {
-        label
-            .padding(5.)
-            .background(theme::PLACEHOLDER_COLOR)
-            .expand_width()
+    fn group<T: Data, W: Widget<T> + 'static>(text: &str, w: W) -> impl Widget<T> {
+        Flex::column()
+            .cross_axis_alignment(CrossAxisAlignment::Start)
+            .with_child(
+                Label::new(text)
+                    .background(theme::PLACEHOLDER_COLOR)
+                    .expand_width(),
+            )
+            .with_default_spacer()
+            .with_child(w)
+            .with_default_spacer()
+            .border(Color::WHITE, 0.5)
     }
 
-    fn group<T: Data, W: Widget<T> + 'static>(w: W) -> Padding<T> {
-        w.border(Color::WHITE, 0.5).padding(5.)
-    }
-
-    let axis_picker = Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(decor(Label::new("Tab bar axis")))
-        .with_child(RadioGroup::new(vec![
+    let axis_picker = group(
+        "Tab bar axis",
+        RadioGroup::new(vec![
             ("Horizontal", Axis::Horizontal),
             ("Vertical", Axis::Vertical),
-        ]))
-        .lens(AppState::tab_config.then(TabConfig::axis));
+        ])
+        .lens(TabConfig::axis),
+    );
 
-    let cross_picker = Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(decor(Label::new("Tab bar alignment")))
-        .with_child(RadioGroup::new(vec![
-            ("Start", CrossAxisAlignment::Start),
-            ("End", CrossAxisAlignment::End),
-        ]))
-        .lens(AppState::tab_config.then(TabConfig::cross));
+    let cross_picker = group(
+        "Tab bar edge",
+        RadioGroup::new(vec![
+            ("Leading", TabsEdge::Leading),
+            ("Trailing", TabsEdge::Trailing),
+        ])
+        .lens(TabConfig::edge),
+    );
 
-    let rot_picker = Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(decor(Label::new("Tab rotation")))
-        .with_child(RadioGroup::new(vec![
-            ("Standard", TabsOrientation::Standard),
-            ("None", TabsOrientation::Turns(0)),
-            ("Up", TabsOrientation::Turns(3)),
-            ("Down", TabsOrientation::Turns(1)),
-            ("Aussie", TabsOrientation::Turns(2)),
-        ]))
-        .lens(AppState::tab_config.then(TabConfig::rotation));
-
-    let transit_picker = Flex::column()
-        .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(decor(Label::new("Transition")))
-        .with_child(RadioGroup::new(vec![
+    let transit_picker = group(
+        "Transition",
+        RadioGroup::new(vec![
             ("Instant", TabsTransition::Instant),
             (
                 "Slide",
                 TabsTransition::Slide(Duration::from_millis(250).as_nanos() as u64),
             ),
-        ]))
-        .lens(AppState::tab_config.then(TabConfig::transition));
+        ])
+        .lens(TabConfig::transition),
+    );
 
     let sidebar = Flex::column()
         .main_axis_alignment(MainAxisAlignment::Start)
         .cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_child(group(axis_picker))
-        .with_child(group(cross_picker))
-        .with_child(group(rot_picker))
-        .with_child(group(transit_picker))
+        .with_child(axis_picker)
+        .with_default_spacer()
+        .with_child(cross_picker)
+        .with_default_spacer()
+        .with_child(transit_picker)
         .with_flex_spacer(1.)
-        .fix_width(200.0);
+        .fix_width(200.0)
+        .lens(AppState::tab_config);
 
     let vs = ViewSwitcher::new(
         |app_s: &AppState, _| app_s.tab_config.clone(),
@@ -164,33 +164,38 @@ struct NumberedTabs;
 impl TabsPolicy for NumberedTabs {
     type Key = usize;
     type Build = ();
-    type Input = Advanced;
-    type LabelWidget = Label<Advanced>;
-    type BodyWidget = Label<Advanced>;
+    type Input = DynamicTabData;
+    type LabelWidget = Label<DynamicTabData>;
+    type BodyWidget = Label<DynamicTabData>;
 
-    fn tabs_changed(&self, old_data: &Advanced, data: &Advanced) -> bool {
+    fn tabs_changed(&self, old_data: &DynamicTabData, data: &DynamicTabData) -> bool {
         old_data.tabs_key() != data.tabs_key()
     }
 
-    fn tabs(&self, data: &Advanced) -> Vec<Self::Key> {
+    fn tabs(&self, data: &DynamicTabData) -> Vec<Self::Key> {
         data.tab_labels.iter().copied().collect()
     }
 
-    fn tab_info(&self, key: Self::Key, _data: &Advanced) -> TabInfo {
+    fn tab_info(&self, key: Self::Key, _data: &DynamicTabData) -> TabInfo<DynamicTabData> {
         TabInfo::new(format!("Tab {:?}", key), true)
     }
 
-    fn tab_body(&self, key: Self::Key, _data: &Advanced) -> Option<Label<Advanced>> {
-        Some(Label::new(format!("Dynamic tab body {:?}", key)))
+    fn tab_body(&self, key: Self::Key, _data: &DynamicTabData) -> Label<DynamicTabData> {
+        Label::new(format!("Dynamic tab body {:?}", key))
     }
 
-    fn close_tab(&self, key: Self::Key, data: &mut Advanced) {
+    fn close_tab(&self, key: Self::Key, data: &mut DynamicTabData) {
         if let Some(idx) = data.tab_labels.index_of(&key) {
             data.remove_tab(idx)
         }
     }
 
-    fn tab_label(&self, _key: Self::Key, info: &TabInfo, _data: &Self::Input) -> Self::LabelWidget {
+    fn tab_label(
+        &self,
+        _key: Self::Key,
+        info: TabInfo<Self::Input>,
+        _data: &Self::Input,
+    ) -> Self::LabelWidget {
         Self::default_make_label(info)
     }
 }
@@ -198,33 +203,37 @@ impl TabsPolicy for NumberedTabs {
 fn build_tab_widget(tab_config: &TabConfig) -> impl Widget<AppState> {
     let dyn_tabs = Tabs::for_policy(NumberedTabs)
         .with_axis(tab_config.axis)
-        .with_cross_axis_alignment(tab_config.cross)
-        .with_rotation(tab_config.rotation)
+        .with_edge(tab_config.edge)
         .with_transition(tab_config.transition)
         .lens(AppState::advanced);
 
-    let adv = Flex::column()
+    let control_dynamic = Flex::column()
         .cross_axis_alignment(CrossAxisAlignment::Start)
         .with_child(Label::new("Control dynamic tabs"))
-        .with_child(Button::new("Add a tab").on_click(|_c, d: &mut Advanced, _e| d.add_tab()))
-        .with_child(Label::new(|adv: &Advanced, _e: &Env| {
+        .with_child(Button::new("Add a tab").on_click(|_c, d: &mut DynamicTabData, _e| d.add_tab()))
+        .with_child(Label::new(|adv: &DynamicTabData, _e: &Env| {
             format!("Highest tab number is {}", adv.highest_tab)
         }))
         .with_spacer(20.)
         .lens(AppState::advanced);
 
+    let first_static_tab = Flex::row()
+        .with_child(Label::new("Rename tab:"))
+        .with_child(TextBox::new().lens(AppState::first_tab_name));
+
     let main_tabs = Tabs::new()
         .with_axis(tab_config.axis)
-        .with_cross_axis_alignment(tab_config.cross)
-        .with_rotation(tab_config.rotation)
+        .with_edge(tab_config.edge)
         .with_transition(tab_config.transition)
-        .with_tab("Basic", Label::new("Basic kind of stuff"))
-        .with_tab("Advanced", adv)
-        .with_tab("Page 3", Label::new("Basic kind of stuff"))
-        .with_tab("Page 4", Label::new("Basic kind of stuff"))
-        .with_tab("Page 5", Label::new("Basic kind of stuff"))
-        .with_tab("Page 6", Label::new("Basic kind of stuff"))
-        .with_tab("Page 7", TextBox::new().lens(AppState::text));
+        .with_tab(
+            |app_state: &AppState, _: &Env| app_state.first_tab_name.to_string(),
+            first_static_tab,
+        )
+        .with_tab("Dynamic", control_dynamic)
+        .with_tab("Page 3", Label::new("Page 3 content"))
+        .with_tab("Page 4", Label::new("Page 4 content"))
+        .with_tab("Page 5", Label::new("Page 5 content"))
+        .with_tab("Page 6", Label::new("Page 6 content"));
 
     Split::rows(main_tabs, dyn_tabs).draggable(true)
 }

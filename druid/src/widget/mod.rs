@@ -29,6 +29,7 @@ mod identity_wrapper;
 mod image;
 mod invalidation;
 mod label;
+mod lens_wrap;
 mod list;
 mod padding;
 mod painter;
@@ -71,7 +72,8 @@ pub use either::Either;
 pub use env_scope::EnvScope;
 pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
 pub use identity_wrapper::IdentityWrapper;
-pub use label::{Label, LabelText};
+pub use label::{Label, LabelText, LineBreaking, RawLabel};
+pub use lens_wrap::LensWrap;
 pub use list::{List, ListIter};
 pub use padding::Padding;
 pub use painter::{BackgroundBrush, Painter};
@@ -89,7 +91,7 @@ pub use stepper::Stepper;
 #[cfg(feature = "svg")]
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
-pub use tabs::{TabInfo, Tabs, TabsOrientation, TabsPolicy, TabsState, TabsTransition};
+pub use tabs::{TabInfo, Tabs, TabsEdge, TabsPolicy, TabsState, TabsTransition};
 pub use textbox::TextBox;
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]

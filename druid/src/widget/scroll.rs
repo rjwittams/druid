@@ -110,14 +110,18 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     ///
     /// Returns `true` if the scroll offset has changed.
     pub fn scroll(&mut self, delta: Vec2, layout_size: Size) -> bool {
-        self.scroll_component.scroll_by(delta, layout_size)
+        let scrolled = self.scroll_component.scroll_by(delta, layout_size);
+        self.child.set_viewport_offset(self.offset());
+        scrolled
     }
 
     /// Scroll to this position on a particular axis.
     ///
     /// Returns `true` if the scroll offset has changed.
-    pub fn scroll_to_direction(&mut self, axis: Axis, position: f64, size: Size) -> bool{
-        self.scroll_component.scroll_on_axis(axis, position, size)
+    pub fn scroll_to_direction(&mut self, axis: Axis, position: f64, size: Size) -> bool {
+        let scrolled = self.scroll_component.scroll_on_axis(axis, position, size);
+        self.child.set_viewport_offset(self.offset());
+        scrolled
     }
 
     /// Return the scroll offset on a particular axis
@@ -141,6 +145,9 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
         }
 
         self.scroll_component.handle_scroll(ctx, event, env);
+        // In order to ensure that invalidation regions are correctly propagated up the tree,
+        // we need to set the viewport offset on our child whenever we change our scroll offset.
+        self.child.set_viewport_offset(self.offset());
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
@@ -170,6 +177,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
 
         let self_size = bc.constrain(child_size);
         let _ = self.scroll_component.scroll_by(Vec2::new(0.0, 0.0), self_size);
+        self.child.set_viewport_offset(self.offset());
         self_size
     }
 
