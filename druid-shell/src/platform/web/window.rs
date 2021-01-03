@@ -33,8 +33,8 @@ use super::application::Application;
 use super::error::Error;
 use super::keycodes::convert_keyboard_event;
 use super::menu::Menu;
-use crate::common_util::IdleCallback;
-use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
+use crate::common_util::{ClickCounter, IdleCallback};
+use crate::dialog::{FileDialogOptions, FileDialogType};
 use crate::error::Error as ShellError;
 use crate::scale::{Scale, ScaledArea};
 
@@ -42,7 +42,7 @@ use crate::keyboard::{KbKey, KeyState, Modifiers};
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::window;
-use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
 
 // This is a macro instead of a function since KeyboardEvent and MouseEvent has identical functions
 // to query modifier key states.
@@ -97,10 +97,11 @@ struct WindowState {
     canvas: web_sys::HtmlCanvasElement,
     context: web_sys::CanvasRenderingContext2d,
     invalid: RefCell<Region>,
+    click_counter: ClickCounter,
 }
 
 // TODO: support custom cursors
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct CustomCursor;
 
 impl WindowState {
@@ -166,12 +167,15 @@ fn setup_mouse_down_callback(ws: &Rc<WindowState>) {
     let state = ws.clone();
     register_canvas_event_listener(ws, "mousedown", move |event: web_sys::MouseEvent| {
         if let Some(button) = mouse_button(event.button()) {
+            let pos = Point::new(event.offset_x() as f64, event.offset_y() as f64);
+            let count = state.click_counter.count_for_click(pos);
+
             let buttons = mouse_buttons(event.buttons());
             let event = MouseEvent {
-                pos: Point::new(event.offset_x() as f64, event.offset_y() as f64),
+                pos,
                 buttons,
                 mods: get_modifiers!(event),
-                count: 1,
+                count,
                 focus: false,
                 button,
                 wheel_delta: Vec2::ZERO,
@@ -374,7 +378,7 @@ impl WindowBuilder {
     }
 
     pub fn build(self) -> Result<WindowHandle, Error> {
-        let window = web_sys::window().ok_or_else(|| Error::NoWindow)?;
+        let window = web_sys::window().ok_or(Error::NoWindow)?;
         let canvas = window
             .document()
             .ok_or(Error::NoDocument)?
@@ -416,6 +420,7 @@ impl WindowBuilder {
             canvas,
             context,
             invalid: RefCell::new(Region::EMPTY),
+            click_counter: ClickCounter::default(),
         });
 
         setup_web_callbacks(&window);
@@ -564,18 +569,14 @@ impl WindowHandle {
         None
     }
 
-    pub fn open_file_sync(&mut self, options: FileDialogOptions) -> Option<FileInfo> {
-        log::warn!("open_file_sync is currently unimplemented for web.");
-        self.file_dialog(FileDialogType::Open, options)
-            .ok()
-            .map(|s| FileInfo { path: s.into() })
+    pub fn open_file(&mut self, _options: FileDialogOptions) -> Option<FileDialogToken> {
+        log::warn!("open_file is currently unimplemented for web.");
+        None
     }
 
-    pub fn save_as_sync(&mut self, options: FileDialogOptions) -> Option<FileInfo> {
-        log::warn!("save_as_sync is currently unimplemented for web.");
-        self.file_dialog(FileDialogType::Save, options)
-            .ok()
-            .map(|s| FileInfo { path: s.into() })
+    pub fn save_as(&mut self, _options: FileDialogOptions) -> Option<FileDialogToken> {
+        log::warn!("save_as is currently unimplemented for web.");
+        None
     }
 
     fn render_soon(&self) {

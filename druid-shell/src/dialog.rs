@@ -26,6 +26,7 @@ pub struct FileInfo {
 
 /// Type of file dialog.
 #[cfg(not(all(target_os = "linux", feature = "x11")))]
+#[derive(Clone, Copy, PartialEq)]
 pub enum FileDialogType {
     /// File open dialog.
     Open,
@@ -289,6 +290,7 @@ impl FileSpec {
     pub const TEXT: FileSpec = FileSpec::new("Text", &["txt"]);
     pub const JPG: FileSpec = FileSpec::new("Jpeg", &["jpg", "jpeg"]);
     pub const GIF: FileSpec = FileSpec::new("Gif", &["gif"]);
+    pub const PNG: FileSpec = FileSpec::new("Portable network graphics (png)", &["png"]);
     pub const PDF: FileSpec = FileSpec::new("PDF", &["pdf"]);
     pub const HTML: FileSpec = FileSpec::new("Web Page", &["htm", "html"]);
 

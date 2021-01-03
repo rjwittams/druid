@@ -145,6 +145,9 @@ pub use im;
 #[macro_use]
 pub mod lens;
 
+#[macro_use]
+mod util;
+
 mod app;
 mod app_delegate;
 mod bloom;
@@ -153,6 +156,7 @@ mod command;
 mod contexts;
 mod core;
 mod data;
+mod dialog;
 mod env;
 mod event;
 mod ext_event;
@@ -165,7 +169,6 @@ pub mod scroll_component;
 mod tests;
 pub mod text;
 pub mod theme;
-mod util;
 pub mod widget;
 mod win_handler;
 mod window;
@@ -173,25 +176,28 @@ mod window;
 // Types from kurbo & piet that are required by public API.
 pub use kurbo::{Affine, Insets, Point, Rect, Size, Vec2};
 pub use piet::{
-    Color, FontFamily, FontStyle, FontWeight, LinearGradient, RadialGradient, RenderContext,
-    TextAlignment, UnitPoint,
+    Color, FontFamily, FontStyle, FontWeight, ImageBuf, LinearGradient, RadialGradient,
+    RenderContext, TextAlignment, UnitPoint,
 };
 // these are the types from shell that we expose; others we only use internally.
+#[cfg(feature = "image")]
+pub use shell::image;
 pub use shell::keyboard_types;
 pub use shell::{
     Application, Clipboard, ClipboardFormat, Code, Cursor, CursorDesc, Error as PlatformError,
-    FileDialogOptions, FileInfo, FileSpec, FormatId, HotKey, ImageBuf, KbKey, KeyEvent, Location,
-    Modifiers, Monitor, MouseButton, MouseButtons, RawMods, Region, Scalable, Scale, Screen,
-    SysMods, TimerToken, WindowHandle, WindowState,
+    FileInfo, FileSpec, FormatId, HotKey, KbKey, KeyEvent, Location, Modifiers, Monitor,
+    MouseButton, MouseButtons, RawMods, Region, Scalable, Scale, Screen, SysMods, TimerToken,
+    WindowHandle, WindowState,
 };
 
 pub use crate::core::WidgetPod;
 pub use app::{AppLauncher, WindowConfig, WindowDesc};
 pub use app_delegate::{AppDelegate, DelegateCtx};
 pub use box_constraints::BoxConstraints;
-pub use command::{sys as commands, Command, Selector, SingleUse, Target};
+pub use command::{sys as commands, Command, Notification, Selector, SingleUse, Target};
 pub use contexts::{EventCtx, LayoutCtx, LifeCycleCtx, PaintCtx, UpdateCtx};
 pub use data::Data;
+pub use dialog::FileDialogOptions;
 pub use env::{Env, Key, KeyOrValue, Value, ValueType};
 pub use event::{Event, InternalEvent, InternalLifeCycle, LifeCycle};
 pub use ext_event::{ExtEventError, ExtEventSink};
@@ -208,10 +214,6 @@ pub use window::{Window, WindowId};
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 pub(crate) use event::{StateCell, StateCheckFn};
-
-#[deprecated(since = "0.7.0", note = "use druid::widget::LensWrap instead")]
-#[allow(missing_docs)]
-pub type LensWrap<A, B, C> = widget::LensWrap<A, B, C>;
 
 /// The meaning (mapped value) of a keypress.
 ///

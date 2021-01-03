@@ -38,7 +38,7 @@ use x11rb::wrapper::ConnectionExt as _;
 use x11rb::xcb_ffi::XCBConnection;
 
 use crate::common_util::IdleCallback;
-use crate::dialog::{FileDialogOptions, FileInfo};
+use crate::dialog::FileDialogOptions;
 use crate::error::Error as ShellError;
 use crate::keyboard::{KeyEvent, KeyState, Modifiers};
 use crate::kurbo::{Point, Rect, Size, Vec2};
@@ -47,7 +47,7 @@ use crate::piet::{Piet, PietText, RenderContext};
 use crate::region::Region;
 use crate::scale::Scale;
 use crate::window;
-use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
 
 use super::application::Application;
 use super::keycodes;
@@ -532,7 +532,7 @@ struct PresentData {
     last_ust: Option<u64>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct CustomCursor(xproto::Cursor);
 
 impl Window {
@@ -1497,15 +1497,15 @@ impl WindowHandle {
         None
     }
 
-    pub fn open_file_sync(&mut self, _options: FileDialogOptions) -> Option<FileInfo> {
-        // TODO(x11/file_dialogs): implement WindowHandle::open_file_sync
-        log::warn!("WindowHandle::open_file_sync is currently unimplemented for X11 platforms.");
+    pub fn open_file(&mut self, _options: FileDialogOptions) -> Option<FileDialogToken> {
+        // TODO(x11/file_dialogs): implement WindowHandle::open_file
+        log::warn!("WindowHandle::open_file is currently unimplemented for X11 platforms.");
         None
     }
 
-    pub fn save_as_sync(&mut self, _options: FileDialogOptions) -> Option<FileInfo> {
-        // TODO(x11/file_dialogs): implement WindowHandle::save_as_sync
-        log::warn!("WindowHandle::save_as_sync is currently unimplemented for X11 platforms.");
+    pub fn save_as(&mut self, _options: FileDialogOptions) -> Option<FileDialogToken> {
+        // TODO(x11/file_dialogs): implement WindowHandle::save_as
+        log::warn!("WindowHandle::save_as is currently unimplemented for X11 platforms.");
         None
     }
 

@@ -66,10 +66,17 @@ impl<T> Editor<T> {
         self.layout.set_wrap_width(width);
     }
 
-    /// Return the inner [`TextLayout`] objects.
+    /// Return a reference to the inner [`TextLayout`] object.
     ///
-    /// [`TextLayout`]: struct.TextLayout.html
-    pub fn layout(&mut self) -> &mut TextLayout<T> {
+    /// [`TextLayout`]: TextLayout
+    pub fn layout(&self) -> &TextLayout<T> {
+        &self.layout
+    }
+
+    /// Return a mutable reference to the inner [`TextLayout`] object.
+    ///
+    /// [`TextLayout`]: TextLayout
+    pub fn layout_mut(&mut self) -> &mut TextLayout<T> {
         &mut self.layout
     }
 }
@@ -81,12 +88,25 @@ impl<T: TextStorage + EditableText> Editor<T> {
     ///
     /// [`WidgetAdded`]: ../enum.LifeCycle.html#variant.WidgetAdded
     pub fn set_text(&mut self, text: T) {
-        self.layout.set_text(text)
+        self.selection = self.selection.constrained(&text);
+        self.layout.set_text(text);
     }
 
     /// Return the current selection.
     pub fn selection(&self) -> &Selection {
         &self.selection
+    }
+
+    /// Set the current selection.
+    ///
+    /// The selection will be constrained to the current text.
+    pub fn set_selection(&mut self, selection: Selection) {
+        let selection = self
+            .layout
+            .text()
+            .map(|t| selection.constrained(t))
+            .unwrap_or_else(|| Selection::caret(0));
+        self.selection = selection;
     }
 
     /// Returns the `Rect`s representing the  current selection.
@@ -130,6 +150,11 @@ impl<T: TextStorage + EditableText> Editor<T> {
         self.do_edit(EditAction::Paste(t), data)
     }
 
+    /// Set the selection to the entire buffer.
+    pub fn select_all(&mut self, data: &T) {
+        self.selection = Selection::new(0, data.len());
+    }
+
     fn mouse_action_for_event(&self, event: &MouseEvent) -> MouseAction {
         let pos = self.layout.text_position_for_point(event.pos);
         MouseAction {
@@ -149,9 +174,9 @@ impl<T: TextStorage + EditableText> Editor<T> {
         if self.data_is_stale(new_data) {
             self.layout.set_text(new_data.clone());
             self.selection = self.selection.constrained(new_data);
-            ctx.request_paint();
+            ctx.request_layout();
         } else if self.layout.needs_rebuild_after_update(ctx) {
-            ctx.request_paint();
+            ctx.request_layout();
         }
         self.rebuild_if_needed(ctx.text(), env);
     }
@@ -210,7 +235,10 @@ impl<T: TextStorage + EditableText> Editor<T> {
     /// the data before us while handling an event; if this is the case we ignore
     /// the event, and our data will be updated in `update`.
     fn data_is_stale(&self, data: &T) -> bool {
-        self.layout.text().map(|t| !t.same(data)).unwrap_or(true)
+        self.layout
+            .text()
+            .map(|t| t.as_str() != data.as_str())
+            .unwrap_or(true)
     }
 
     fn insert(&mut self, data: &mut T, text: &str) {

@@ -16,9 +16,8 @@
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::ffi::c_void;
-use std::ffi::OsString;
 use std::os::raw::{c_int, c_uint};
 use std::panic::Location;
 use std::ptr;
@@ -31,12 +30,12 @@ use cairo::Surface;
 use gdk::{EventKey, EventMask, ModifierType, ScrollDirection, WindowExt, WindowTypeHint};
 use gio::ApplicationExt;
 use gtk::prelude::*;
-use gtk::{AccelGroup, ApplicationWindow, DrawingArea};
+use gtk::{AccelGroup, ApplicationWindow, DrawingArea, SettingsExt};
 
 use crate::kurbo::{Point, Rect, Size, Vec2};
 use crate::piet::{Piet, PietText, RenderContext};
 
-use crate::common_util::IdleCallback;
+use crate::common_util::{ClickCounter, IdleCallback};
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
 use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyEvent, KeyState, Modifiers};
@@ -45,7 +44,7 @@ use crate::piet::ImageFormat;
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
-use crate::window::{IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
 
 use super::application::Application;
 use super::dialog;
@@ -91,6 +90,16 @@ macro_rules! clone {
 #[derive(Clone, Default)]
 pub struct WindowHandle {
     pub(crate) state: Weak<WindowState>,
+    // Ensure that we don't implement Send, because it isn't actually safe to send the WindowState.
+    marker: std::marker::PhantomData<*const ()>,
+}
+
+/// Operations that we defer in order to avoid re-entrancy. See the documentation in the windows
+/// backend for more details.
+enum DeferredOp {
+    SaveAs(FileDialogOptions, FileDialogToken),
+    Open(FileDialogOptions, FileDialogToken),
+    ContextMenu(Menu, WindowHandle),
 }
 
 /// Builder abstraction for creating new windows
@@ -149,9 +158,11 @@ pub(crate) struct WindowState {
     pub(crate) handler: RefCell<Box<dyn WinHandler>>,
     idle_queue: Arc<Mutex<Vec<IdleKind>>>,
     current_keycode: Cell<Option<u16>>,
+    click_counter: ClickCounter,
+    deferred_queue: RefCell<Vec<DeferredOp>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct CustomCursor(gdk::Cursor);
 
 impl WindowBuilder {
@@ -250,6 +261,8 @@ impl WindowBuilder {
             handler: RefCell::new(handler),
             idle_queue: Arc::new(Mutex::new(vec![])),
             current_keycode: Cell::new(None),
+            click_counter: ClickCounter::default(),
+            deferred_queue: RefCell::new(Vec::new()),
         });
 
         self.app
@@ -263,6 +276,7 @@ impl WindowBuilder {
 
         let mut handle = WindowHandle {
             state: Arc::downgrade(&win_state),
+            marker: std::marker::PhantomData,
         };
         if let Some(level) = self.level {
             handle.set_level(level);
@@ -289,7 +303,8 @@ impl WindowBuilder {
                 | EventMask::ENTER_NOTIFY_MASK
                 | EventMask::KEY_RELEASE_MASK
                 | EventMask::SCROLL_MASK
-                | EventMask::SMOOTH_SCROLL_MASK,
+                | EventMask::SMOOTH_SCROLL_MASK
+                | EventMask::FOCUS_CHANGE_MASK,
         );
 
         win_state.drawing_area.set_can_focus(true);
@@ -359,14 +374,13 @@ impl WindowBuilder {
                     // Note that we're borrowing the surface while calling the handler. This is ok,
                     // because we don't return control to the system or re-borrow the surface from
                     // any code that the client can call.
-                    // (TODO: the above comment isn't true yet because of save_as_sync and
-                    // open_sync, but it will be true soon)
                     state.with_handler_and_dont_check_the_other_borrows(|handler| {
                         let surface_context = cairo::Context::new(surface);
 
                         // Clip to the invalid region, in order that our surface doesn't get
                         // messed up if there's any painting outside them.
                         for rect in invalid.rects() {
+                            let rect = rect.to_px(scale);
                             surface_context.rectangle(rect.x0, rect.y0, rect.width(), rect.height());
                         }
                         surface_context.clip();
@@ -400,17 +414,32 @@ impl WindowBuilder {
                     if let Some(button) = get_mouse_button(event.get_button()) {
                         let scale = state.scale.get();
                         let button_state = event.get_state();
-                        handler.mouse_down(
-                            &MouseEvent {
-                                pos: Point::from(event.get_position()).to_dp(scale),
-                                buttons: get_mouse_buttons_from_modifiers(button_state).with(button),
-                                mods: get_modifiers(button_state),
-                                count: get_mouse_click_count(event.get_event_type()),
-                                focus: false,
-                                button,
-                                wheel_delta: Vec2::ZERO
-                            },
-                        );
+                        let gtk_count = get_mouse_click_count(event.get_event_type());
+                        let pos: Point =  event.get_position().into();
+                        let count = if gtk_count == 1 {
+                            let settings = state.drawing_area.get_settings().unwrap();
+                            let thresh_dist = settings.get_property_gtk_double_click_distance();
+                            state.click_counter.set_distance(thresh_dist.into());
+                            if let Ok(ms) = settings.get_property_gtk_double_click_time().try_into() {
+                                state.click_counter.set_interval_ms(ms);
+                            }
+                            state.click_counter.count_for_click(pos)
+                        } else {
+                            0
+                        };
+                        if gtk_count == 0 || gtk_count == 1 {
+                            handler.mouse_down(
+                                &MouseEvent {
+                                    pos: pos.to_dp(scale),
+                                    buttons: get_mouse_buttons_from_modifiers(button_state).with(button),
+                                    mods: get_modifiers(button_state),
+                                    count,
+                                    focus: false,
+                                    button,
+                                    wheel_delta: Vec2::ZERO
+                                },
+                            );
+                        }
                     }
                 });
             }
@@ -578,6 +607,24 @@ impl WindowBuilder {
             }));
 
         win_state
+            .drawing_area
+            .connect_focus_in_event(clone!(handle => move |_widget, _event| {
+                if let Some(state) = handle.state.upgrade() {
+                    state.with_handler(|h| h.got_focus());
+                }
+                Inhibit(true)
+            }));
+
+        win_state
+            .drawing_area
+            .connect_focus_out_event(clone!(handle => move |_widget, _event| {
+                if let Some(state) = handle.state.upgrade() {
+                    state.with_handler(|h| h.lost_focus());
+                }
+                Inhibit(true)
+            }));
+
+        win_state
             .window
             .connect_delete_event(clone!(handle => move |_widget, _ev| {
                 if let Some(state) = handle.state.upgrade() {
@@ -623,7 +670,10 @@ impl WindowState {
             return None;
         }
 
-        self.with_handler_and_dont_check_the_other_borrows(f)
+        let ret = self.with_handler_and_dont_check_the_other_borrows(f);
+
+        self.run_deferred();
+        ret
     }
 
     #[track_caller]
@@ -688,6 +738,48 @@ impl WindowState {
             self.window.queue_draw();
         } else {
             log::warn!("Not invalidating rect because region already borrowed");
+        }
+    }
+
+    /// Pushes a deferred op onto the queue.
+    fn defer(&self, op: DeferredOp) {
+        self.deferred_queue.borrow_mut().push(op);
+    }
+
+    fn run_deferred(&self) {
+        let queue = self.deferred_queue.replace(Vec::new());
+        for op in queue {
+            match op {
+                DeferredOp::Open(options, token) => {
+                    let file_info = dialog::get_file_dialog_path(
+                        self.window.upcast_ref(),
+                        FileDialogType::Open,
+                        options,
+                    )
+                    .ok()
+                    .map(|s| FileInfo { path: s.into() });
+                    self.with_handler(|h| h.open_file(token, file_info));
+                }
+                DeferredOp::SaveAs(options, token) => {
+                    let file_info = dialog::get_file_dialog_path(
+                        self.window.upcast_ref(),
+                        FileDialogType::Save,
+                        options,
+                    )
+                    .ok()
+                    .map(|s| FileInfo { path: s.into() });
+                    self.with_handler(|h| h.save_as(token, file_info));
+                }
+                DeferredOp::ContextMenu(menu, handle) => {
+                    let accel_group = AccelGroup::new();
+                    self.window.add_accel_group(&accel_group);
+
+                    let menu = menu.into_gtk_menu(&handle, &accel_group);
+                    menu.set_property_attach_widget(Some(&self.window));
+                    menu.show_all();
+                    menu.popup_easy(3, gtk::get_current_event_time());
+                }
+            }
         }
     }
 }
@@ -848,16 +940,15 @@ impl WindowHandle {
         };
 
         let token = TimerToken::next();
-        let handle = self.clone();
 
-        glib::timeout_add(interval, move || {
-            if let Some(state) = handle.state.upgrade() {
+        if let Some(state) = self.state.upgrade() {
+            glib::timeout_add(interval, move || {
                 if state.with_handler(|h| h.timer(token)).is_some() {
                     return glib::Continue(false);
                 }
-            }
-            glib::Continue(true)
-        });
+                glib::Continue(true)
+            });
+        }
         token
     }
 
@@ -900,16 +991,24 @@ impl WindowHandle {
         }
     }
 
-    pub fn open_file_sync(&mut self, options: FileDialogOptions) -> Option<FileInfo> {
-        self.file_dialog(FileDialogType::Open, options)
-            .ok()
-            .map(|s| FileInfo { path: s.into() })
+    pub fn open_file(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {
+        if let Some(state) = self.state.upgrade() {
+            let tok = FileDialogToken::next();
+            state.defer(DeferredOp::Open(options, tok));
+            Some(tok)
+        } else {
+            None
+        }
     }
 
-    pub fn save_as_sync(&mut self, options: FileDialogOptions) -> Option<FileInfo> {
-        self.file_dialog(FileDialogType::Save, options)
-            .ok()
-            .map(|s| FileInfo { path: s.into() })
+    pub fn save_as(&mut self, options: FileDialogOptions) -> Option<FileDialogToken> {
+        if let Some(state) = self.state.upgrade() {
+            let tok = FileDialogToken::next();
+            state.defer(DeferredOp::SaveAs(options, tok));
+            Some(tok)
+        } else {
+            None
+        }
     }
 
     /// Get a handle that can be used to schedule an idle task.
@@ -954,15 +1053,7 @@ impl WindowHandle {
 
     pub fn show_context_menu(&self, menu: Menu, _pos: Point) {
         if let Some(state) = self.state.upgrade() {
-            let window = &state.window;
-
-            let accel_group = AccelGroup::new();
-            window.add_accel_group(&accel_group);
-
-            let menu = menu.into_gtk_menu(&self, &accel_group);
-            menu.set_property_attach_widget(Some(window));
-            menu.show_all();
-            menu.popup_easy(3, gtk::get_current_event_time());
+            state.defer(DeferredOp::ContextMenu(menu, self.clone()));
         }
     }
 
@@ -971,22 +1062,12 @@ impl WindowHandle {
             state.window.set_title(&(title.into()));
         }
     }
-
-    fn file_dialog(
-        &self,
-        ty: FileDialogType,
-        options: FileDialogOptions,
-    ) -> Result<OsString, ShellError> {
-        if let Some(state) = self.state.upgrade() {
-            dialog::get_file_dialog_path(state.window.upcast_ref(), ty, options)
-        } else {
-            Err(anyhow!("Cannot upgrade state from weak pointer to arc").into())
-        }
-    }
 }
 
-unsafe impl Send for IdleHandle {}
-// WindowState needs to be Send + Sync so it can be passed into glib closures
+// WindowState needs to be Send + Sync so it can be passed into glib closures.
+// TODO: can we localize the unsafety more? Glib's idle loop always runs on the main thread,
+// and we always construct the WindowState on the main thread, so it should be ok (and also
+// WindowState isn't a public type).
 unsafe impl Send for WindowState {}
 unsafe impl Sync for WindowState {}
 

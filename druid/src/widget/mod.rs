@@ -19,6 +19,7 @@ mod binding;
 mod button;
 mod checkbox;
 mod click;
+mod clip_box;
 mod common;
 mod container;
 mod controller;
@@ -65,6 +66,7 @@ pub use binding::{
 pub use button::Button;
 pub use checkbox::Checkbox;
 pub use click::Click;
+pub use clip_box::{ClipBox, Viewport};
 pub use common::FillStrat;
 pub use container::Container;
 pub use controller::{Controller, ControllerHost};
@@ -92,7 +94,7 @@ pub use stepper::Stepper;
 pub use svg::{Svg, SvgData};
 pub use switch::Switch;
 pub use tabs::{TabInfo, Tabs, TabsEdge, TabsPolicy, TabsState, TabsTransition};
-pub use textbox::TextBox;
+pub use textbox::{TextBox, TextBoxEvent, ValidationDelegate, ValueTextBox};
 pub use view_switcher::ViewSwitcher;
 #[doc(hidden)]
 pub use widget::{Widget, WidgetId};
@@ -123,7 +125,7 @@ pub use widget_ext::WidgetExt;
 pub mod prelude {
     #[doc(hidden)]
     pub use crate::{
-        BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
+        BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx,
         RenderContext, Size, UpdateCtx, Widget, WidgetId,
     };
 }
