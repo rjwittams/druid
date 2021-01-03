@@ -5,6 +5,7 @@ use crate::{
 };
 use std::f64::consts::PI;
 
+/// A widget that rotates its child by an integral number of quarter turns
 pub struct Rotated<W> {
     child: W,
     quarter_turns: u8,
@@ -12,6 +13,7 @@ pub struct Rotated<W> {
 }
 
 impl<W> Rotated<W> {
+    /// Create a Rotated widget.
     pub fn new(child: W, quarter_turns: u8) -> Self {
         Rotated {
             child,

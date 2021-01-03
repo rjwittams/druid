@@ -14,10 +14,10 @@
 
 //! A widget that provides an explicit identity to a child.
 
-use crate::widget::prelude::*;
-use crate::Data;
 use crate::kurbo::Size;
+use crate::widget::prelude::*;
 use crate::widget::BindableAccess;
+use crate::Data;
 
 /// A wrapper that adds an identity to an otherwise anonymous widget.
 pub struct IdentityWrapper<W> {

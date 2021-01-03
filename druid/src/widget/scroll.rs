@@ -14,11 +14,9 @@
 
 //! A container that scrolls its contents.
 
-use std::f64::INFINITY;
-
 use crate::widget::prelude::*;
-use crate::widget::{Axis, BindableProperty, Bindable, ClipBox};
-use crate::{scroll_component::*, Data, Rect, Vec2, WidgetPod};
+use crate::widget::{Axis, Bindable, BindableProperty, ClipBox};
+use crate::{scroll_component::*, Data, Rect, Vec2};
 use std::marker::PhantomData;
 
 #[derive(Debug, Clone)]
@@ -63,7 +61,7 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     /// Restrict scrolling to the vertical axis while locking child width.
     pub fn vertical(mut self) -> Self {
         self.direction = ScrollDirection::Vertical;
-        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Vertical;
+        self.scroll_component.enabled = ScrollbarsEnabled::Vertical;
         self.clip.set_constrain_vertical(false);
         self.clip.set_constrain_horizontal(true);
         self
@@ -72,24 +70,27 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     /// Restrict scrolling to the horizontal axis while locking child height.
     pub fn horizontal(mut self) -> Self {
         self.direction = ScrollDirection::Horizontal;
-        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Horizontal;
+        self.scroll_component.enabled = ScrollbarsEnabled::Horizontal;
         self.clip.set_constrain_vertical(true);
         self.clip.set_constrain_horizontal(false);
         self
     }
 
+    /// Disable both scrollbars
     pub fn disable_scrollbars(mut self) -> Self {
-        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::None;
+        self.scroll_component.enabled = ScrollbarsEnabled::None;
         self
     }
 
+    /// Enable just vertical scrollbar
     pub fn only_vertical_scrollbar(mut self) -> Self {
-        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Vertical;
+        self.scroll_component.enabled = ScrollbarsEnabled::Vertical;
         self
     }
 
+    /// Enable just horizontal scrollbar
     pub fn only_horizontal_scrollbar(mut self) -> Self {
-        self.scroll_component.scrollbars_enabled = ScrollbarsEnabled::Horizontal;
+        self.scroll_component.enabled = ScrollbarsEnabled::Horizontal;
         self
     }
 
@@ -131,15 +132,13 @@ impl<T, W: Widget<T>> Scroll<T, W> {
     /// Scroll to this position on a particular axis.
     ///
     /// Returns `true` if the scroll offset has changed.
-    pub fn scroll_to_direction(&mut self, axis: Axis, position: f64, size: Size) -> bool {
-        let scrolled = self.scroll_component.scroll_on_axis(axis, position, size);
-        self.child.set_viewport_offset(self.offset());
-        scrolled
+    pub fn scroll_to_on_axis(&mut self, axis: Axis, position: f64) -> bool {
+        self.clip.pan_to_on_axis(axis, position)
     }
 
     /// Return the scroll offset on a particular axis
     pub fn offset_for_axis(&self, axis: Axis) -> f64 {
-        self.scroll_component.offset_for_axis(axis)
+        axis.major_pos(self.clip.viewport_origin())
     }
 }
 
@@ -203,6 +202,8 @@ fn log_size_warnings(size: Size) {
     }
 }
 
+/// A bindable property to allow scroll offsets to be linked to app data.
+/// Useful within composite components with linked scroll areas (eg tables)
 pub struct ScrollToProperty<T, W> {
     direction: Axis, // We have no public direction/axis type, but two private ones. Sigh.
     phantom_t: PhantomData<T>,
@@ -210,6 +211,7 @@ pub struct ScrollToProperty<T, W> {
 }
 
 impl<T, W> ScrollToProperty<T, W> {
+    /// Create a Scroll To property for the specified axis.
     pub fn new(direction: Axis) -> Self {
         ScrollToProperty {
             direction,
@@ -220,24 +222,24 @@ impl<T, W> ScrollToProperty<T, W> {
 }
 
 impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
-    type Controlling = Scroll<T, W>;
+    type Controlled = Scroll<T, W>;
     type Value = f64;
     type Change = ();
 
     fn write_prop(
         &self,
-        controlled: &mut Self::Controlling,
+        controlled: &mut Self::Controlled,
         ctx: &mut UpdateCtx,
         position: &Self::Value,
         _env: &Env,
     ) {
-        controlled.scroll_to_direction(self.direction, *position, ctx.size());
+        controlled.scroll_to_on_axis(self.direction, *position);
         ctx.request_paint()
     }
 
     fn append_changes(
         &self,
-        controlled: &Self::Controlling,
+        controlled: &Self::Controlled,
         field_val: &Self::Value,
         change: &mut Option<Self::Change>,
         _env: &Env,
@@ -249,7 +251,7 @@ impl<T, W: Widget<T>> BindableProperty for ScrollToProperty<T, W> {
 
     fn update_data_from_change(
         &self,
-        controlled: &Self::Controlling,
+        controlled: &Self::Controlled,
         _ctx: &EventCtx,
         field: &mut Self::Value,
         _change: Self::Change,

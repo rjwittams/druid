@@ -19,7 +19,6 @@ use std::time::Duration;
 
 use crate::kurbo::{Point, Rect, Vec2};
 use crate::theme;
-use crate::widget::Axis;
 use crate::widget::Viewport;
 use crate::{Env, Event, EventCtx, LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, TimerToken};
 
@@ -28,29 +27,34 @@ use crate::{Env, Event, EventCtx, LifeCycle, LifeCycleCtx, PaintCtx, RenderConte
 /// scrollbar's primary axis.
 pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
 
+/// The direction of a scroll bar.
 #[derive(Debug, Clone)]
 pub enum ScrollDirection {
-    Bidirectional,
-    Vertical,
+    /// Scrolling on the x axis
     Horizontal,
+    /// Scrolling on the y axis
+    Vertical,
 }
 
 #[derive(Debug, Copy, Clone)]
+/// Which scroll bars of a scroll area are currently enabled.
 pub enum ScrollbarsEnabled {
+    /// No scrollbars are enabled
     None,
+    /// Scrolling on the x axis is allowed
     Horizontal,
+    /// Scrolling on the y axis is allowed
     Vertical,
+    /// Bidirectional scrolling is allowed
     Both,
 }
 
 impl ScrollbarsEnabled {
-    fn is_enabled(&self, direction: ScrollDirection) -> bool {
-        match (self, direction) {
-            (ScrollbarsEnabled::Both, _) => true,
-            (ScrollbarsEnabled::Horizontal, ScrollDirection::Horizontal) => true,
-            (ScrollbarsEnabled::Vertical, ScrollDirection::Vertical) => true,
-            _ => false,
-        }
+    fn is_enabled(self, direction: ScrollDirection) -> bool {
+        matches!((self, direction),
+             (ScrollbarsEnabled::Both, _) |
+             (ScrollbarsEnabled::Horizontal, ScrollDirection::Horizontal) |
+             (ScrollbarsEnabled::Vertical, ScrollDirection::Vertical))
     }
 }
 
@@ -136,7 +140,7 @@ pub struct ScrollComponent {
     /// Which if any scrollbar is currently being dragged by the mouse
     pub held: BarHeldState,
     /// Which scrollbars are enabled
-    pub scrollbars_enabled: ScrollbarsEnabled,
+    pub enabled: ScrollbarsEnabled,
 }
 
 impl Default for ScrollComponent {
@@ -146,6 +150,7 @@ impl Default for ScrollComponent {
             timer_id: TimerToken::INVALID,
             hovered: BarHoveredState::None,
             held: BarHeldState::None,
+            enabled: ScrollbarsEnabled::Both,
         }
     }
 }
@@ -159,54 +164,6 @@ impl ScrollComponent {
     /// true if either scrollbar is currently held down/being dragged
     pub fn are_bars_held(&self) -> bool {
         !matches!(self.held, BarHeldState::None)
-    }
-
-    /// Update the scroll.
-    ///
-    /// Returns `true` if the scroll has been updated.
-    pub fn scroll_by(&mut self, delta: Vec2, layout_size: Size) -> bool {
-        self.scroll_to(self.scroll_offset + delta, layout_size)
-    }
-
-    pub fn scroll_to(&mut self, offset: Vec2, layout_size: Size) -> bool {
-        let offset = Vec2::new(
-            offset
-                .x
-                .min(self.content_size.width - layout_size.width)
-                .max(0.0),
-            offset
-                .y
-                .min(self.content_size.height - layout_size.height)
-                .max(0.0),
-        );
-        if (offset - self.scroll_offset).hypot2() > 1e-12 {
-            self.scroll_offset = offset;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn scroll_to_opt(&mut self, x: Option<f64>, y: Option<f64>, size: Size) -> bool {
-        let new_pos = Vec2::new(
-            x.unwrap_or(self.scroll_offset.x),
-            y.unwrap_or(self.scroll_offset.y),
-        );
-        self.scroll_to(new_pos, size)
-    }
-
-    pub fn scroll_on_axis(&mut self, axis: Axis, position: f64, size: Size) -> bool {
-        match axis {
-            Axis::Vertical => self.scroll_to_opt(None, Some(position), size),
-            Axis::Horizontal => self.scroll_to_opt(Some(position), None, size),
-        }
-    }
-
-    pub fn offset_for_axis(&self, axis: Axis) -> f64 {
-        match axis {
-            Axis::Vertical => self.scroll_offset.y,
-            Axis::Horizontal => self.scroll_offset.x,
-        }
     }
 
     /// Makes the scrollbars visible, and resets the fade timer.
@@ -292,14 +249,13 @@ impl ScrollComponent {
 
     /// Draw scroll bars.
     pub fn draw_bars(&self, ctx: &mut PaintCtx, port: &Viewport, env: &Env) {
+        let scroll_offset = port.rect.origin().to_vec2();
         let (draw_vertical, draw_horizontal) = (
-            self.scrollbars_enabled
-                .is_enabled(ScrollDirection::Horizontal),
-            self.scrollbars_enabled
-                .is_enabled(ScrollDirection::Vertical),
+            self.enabled.is_enabled(ScrollDirection::Horizontal),
+            self.enabled.is_enabled(ScrollDirection::Vertical),
         );
 
-        if !(draw_vertical || draw_horizontal) || self.scrollbars.opacity <= 0.0 {
+        if !(draw_vertical || draw_horizontal) || self.opacity <= 0.0 {
             return;
         }
 
@@ -341,8 +297,8 @@ impl ScrollComponent {
     ///
     /// Returns false if the vertical scrollbar is not visible
     pub fn point_hits_vertical_bar(&self, port: &Viewport, pos: Point, env: &Env) -> bool {
-        if !self.scrollbars_enabled.is_enabled(ScrollDirection::Vertical) {
-            return false
+        if !self.enabled.is_enabled(ScrollDirection::Vertical) {
+            return false;
         }
         let viewport_size = port.rect.size();
         let scroll_offset = port.rect.origin().to_vec2();
@@ -360,8 +316,8 @@ impl ScrollComponent {
     ///
     /// Returns false if the horizontal scrollbar is not visible
     pub fn point_hits_horizontal_bar(&self, port: &Viewport, pos: Point, env: &Env) -> bool {
-        if !self.scrollbars_enabled.is_enabled(ScrollDirection::Horizontal) {
-            return false
+        if !self.enabled.is_enabled(ScrollDirection::Horizontal) {
+            return false;
         }
         let viewport_size = port.rect.size();
         let scroll_offset = port.rect.origin().to_vec2();

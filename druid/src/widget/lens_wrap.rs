@@ -116,7 +116,7 @@ where
     }
 }
 
-impl<U, L, W: BindableAccess> BindableAccess for LensWrap<U, L, W> {
+impl<T, U, L, W: BindableAccess> BindableAccess for LensWrap<T, U, L, W> {
     type Wrapped = W::Wrapped;
 
     fn bindable(&self) -> &Self::Wrapped {

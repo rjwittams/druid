@@ -15,8 +15,11 @@ use std::marker::PhantomData;
 /// This scheme isn't perfect as it stops at the first Bindable in all cases. However it covers the common case of
 /// binding something that is already lensed
 pub trait BindableAccess {
+    /// What is the wrapped type being accessed through this implementation
     type Wrapped;
+    /// Get immutable access to the wrapped instance.
     fn bindable(&self) -> &Self::Wrapped;
+    /// Get mutable access to the wrapped instance.
     fn bindable_mut(&mut self) -> &mut Self::Wrapped;
 }
 
@@ -26,6 +29,7 @@ pub trait BindableAccess {
 pub trait Bindable {}
 
 impl<B: Bindable> BindableAccess for B {
+    /// Anything bindable wraps itself
     type Wrapped = Self;
 
     fn bindable(&self) -> &Self::Wrapped {
@@ -172,6 +176,7 @@ impl<T, Controlled, B: Binding<T, Controlled>> Binding<T, Controlled>
     }
 }
 
+/// This wraps another binding, and skips the flow from data to widget
 pub struct WidgetToDataOnlyBinding<B>(B);
 
 impl<T, Controlled, B: Binding<T, Controlled>> Binding<T, Controlled>
@@ -211,7 +216,14 @@ impl<T, Controlled, B: Binding<T, Controlled>> Binding<T, Controlled>
     }
 }
 
-/// This binds two lenses that evaluate to the same type together.
+/// This binds two lenses that evaluate to the same type (PropValue) together.
+/// One lens (LT) must be from data (T) to (PropValue)
+/// The other lens (LC) must be from (Controlled) to (PropValue)
+///
+/// This is a 'quick' alternative to making "real" bindable properties (derive lens on your widget).
+/// It might be superfluous if bindable properties can be macro generated.
+/// Right now it also just does a request paint as it doesn't know what else might need to change (in the context)
+/// - this is probably something that needs some thought.
 pub struct LensBinding<
     T,
     Controlled,
@@ -229,6 +241,7 @@ pub struct LensBinding<
 impl<T, Controlled, PropValue, LT: Lens<T, PropValue>, LC: Lens<Controlled, PropValue>>
     LensBinding<T, Controlled, PropValue, LT, LC>
 {
+    /// Create a lens binding
     pub fn new(lens_from_data: LT, lens_from_controlled: LC) -> Self {
         LensBinding {
             lens_from_data,
@@ -292,28 +305,44 @@ impl<T, Controlled, PropValue: Data, LT: Lens<T, PropValue>, LC: Lens<Controlled
     }
 }
 
+/// This represents a property (usually on a widget) that can be bound
 pub trait BindableProperty {
-    type Controlling;
+    /// The controlled item - usually a widget.
+    /// Its not constrained to a widget as it could be some subpart of it.
+    type Controlled;
+    /// The type of the property
     type Value;
+
+    /// The type of a change to the property.
+    /// This is its own type to allow conflation of small changes to large values.
+    /// If that kind of optimisation isn't needed (the default case) it can simply be (), so Some(())
+    /// indicates that there has been a change, and the field value can be accessed
+    /// directly in update_data_from_change.
     type Change;
 
+    /// Write the value from a data change to the property on the controlled item.
     fn write_prop(
         &self,
-        controlled: &mut Self::Controlling,
+        controlled: &mut Self::Controlled,
         ctx: &mut UpdateCtx,
         field_val: &Self::Value,
         env: &Env,
     );
+
+    /// Modify the change parameter to include any additional changes.
     fn append_changes(
         &self,
-        controlled: &Self::Controlling,
+        controlled: &Self::Controlled,
         field_val: &Self::Value,
         change: &mut Option<Self::Change>,
         env: &Env,
     );
+
+    /// Update the mutable 'field' reference with the changes accrued in 'change'.
+    /// The controlled value can also be copied over directly if that is efficient enough.
     fn update_data_from_change(
         &self,
-        controlled: &Self::Controlling,
+        controlled: &Self::Controlled,
         ctx: &EventCtx,
         field: &mut Self::Value,
         change: Self::Change,
@@ -321,12 +350,13 @@ pub trait BindableProperty {
     );
 }
 
+/// This binds a lens (LT) on some data (T) to a bindable property (PropC) on a widget (Controlled)
 pub struct LensPropBinding<
     T,
     Controlled,
     PropValue,
     LT: Lens<T, PropValue>,
-    PropC: BindableProperty<Controlling = Controlled, Value = PropValue>,
+    PropC: BindableProperty<Controlled = Controlled, Value = PropValue>,
 > {
     lens_from_data: LT,
     prop_from_controlled: PropC,
@@ -340,9 +370,10 @@ impl<
         Controlled,
         PropValue,
         LT: Lens<T, PropValue>,
-        PropC: BindableProperty<Controlling = Controlled, Value = PropValue>,
+        PropC: BindableProperty<Controlled = Controlled, Value = PropValue>,
     > LensPropBinding<T, Controlled, PropValue, LT, PropC>
 {
+    /// Create a binding between a lens to data, and a property on a controlled item (usually a widget)
     pub fn new(lens_from_data: LT, prop_from_controlled: PropC) -> Self {
         LensPropBinding {
             lens_from_data,
@@ -359,7 +390,7 @@ impl<
         Controlled,
         PropValue,
         LT: Lens<T, PropValue>,
-        PropC: BindableProperty<Controlling = Controlled, Value = PropValue>,
+        PropC: BindableProperty<Controlled = Controlled, Value = PropValue>,
     > Binding<T, Controlled> for LensPropBinding<T, Controlled, PropValue, LT, PropC>
 {
     type Change = PropC::Change;
@@ -405,28 +436,32 @@ impl<
     }
 }
 
-/// This series of traits provides combinators for building up bindings
+/// This trait provides combinators for building up bindings on lenses from data
 pub trait LensBindingExt<T, U>: Lens<T, U> + Sized {
     // Need GATs to merge these methods
 
+    /// Bind this lens on data to another lens on a controlled item C (usually a widget)
     fn bind_lens<C, L: Lens<C, U>>(self, other: L) -> LensBinding<T, C, U, Self, L> {
         LensBinding::new(self, other)
     }
 
+    /// Bind this lens on data to a bindable property BP on a controlled item C (usually a widget)
     fn bind<BP: BindableProperty<Value = U>>(
         self,
         prop: BP,
-    ) -> LensPropBinding<T, BP::Controlling, U, Self, BP> {
+    ) -> LensPropBinding<T, BP::Controlled, U, Self, BP> {
         LensPropBinding::new(self, prop)
     }
 }
 
 impl<T, U, M: Lens<T, U> + Sized + 'static> LensBindingExt<T, U> for M {}
 
+/// This trait provides combinators for building up bindings on widgets
 pub trait WidgetBindingExt<T, U>: Widget<T> + Sized + BindableAccess
 where
     Self::Wrapped: Widget<U>,
 {
+    /// Bind properties in this widget using the binding B
     fn binding<B: Binding<T, Self::Wrapped>>(
         self,
         binding: B,
@@ -442,13 +477,17 @@ where
 {
 }
 
+/// This trait provides combinators on bindings
 pub trait BindingExt<T, Controlled>: Binding<T, Controlled> + Sized {
+    /// Combine this binding with another
     fn and<B: Binding<T, Controlled>>(self, other: B) -> (Self, B) {
         (self, other)
     }
+    /// Filter out updates to the widget side of this binding
     fn back(self) -> WidgetToDataOnlyBinding<Self> {
         WidgetToDataOnlyBinding(self)
     }
+    /// Filter out updates to the data side of this binding
     fn forward(self) -> DataToWidgetOnlyBinding<Self> {
         DataToWidgetOnlyBinding(self)
     }
@@ -479,6 +518,7 @@ impl<
         B: Binding<T, Controlled>,
     > BindingHost<T, U, Contained, Controlled, B>
 {
+    /// Create a binding host from a Widget and a Binding
     pub fn new(contained: Contained, binding: B) -> Self {
         BindingHost {
             contained,

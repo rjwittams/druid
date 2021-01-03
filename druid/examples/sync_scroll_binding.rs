@@ -90,10 +90,9 @@ impl Widget<String> for LensedWidget {
 
         let try_font = ctx.text().font_family(&self.font_name);
 
-        let (font, found) = if try_font.is_some() {
-            (try_font.unwrap(), true)
-        } else {
-            (ctx.text().font_family("Arial").unwrap(), false)
+        let (font, found) = match try_font {
+            Some(font) => (font, true),
+            _ => (ctx.text().font_family("Arial").unwrap(), false),
         };
 
         if let Ok(layout) = ctx
