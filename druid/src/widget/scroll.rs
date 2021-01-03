@@ -18,6 +18,8 @@ use std::f64::INFINITY;
 
 use crate::widget::prelude::*;
 use crate::{scroll_component::*, Data, Vec2, WidgetPod};
+use std::marker::PhantomData;
+use crate::widget::{Axis, BindableProperty, Bindable};
 
 #[derive(Debug, Clone)]
 enum ScrollDirection {
