@@ -15,7 +15,6 @@
 //! Common widgets.
 
 mod align;
-mod binding;
 mod button;
 mod checkbox;
 mod click;
@@ -58,11 +57,6 @@ mod widget_ext;
 
 pub use self::image::Image;
 pub use align::Align;
-pub use binding::{
-    Bindable, BindableAccess, BindableProperty, Binding, BindingExt, BindingHost,
-    DataToWidgetOnlyBinding, LensBinding, LensBindingExt, LensPropBinding, WidgetBindingExt,
-    WidgetToDataOnlyBinding,
-};
 pub use button::Button;
 pub use checkbox::Checkbox;
 pub use click::Click;
@@ -84,7 +78,7 @@ pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
 pub use rotated::Rotated;
 pub use scope::{DefaultScopePolicy, LensScopeTransfer, Scope, ScopePolicy, ScopeTransfer};
-pub use scroll::{Scroll, ScrollToProperty};
+pub use scroll::Scroll;
 pub use sized_box::SizedBox;
 pub use slider::Slider;
 pub use spinner::Spinner;
