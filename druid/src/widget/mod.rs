@@ -55,7 +55,7 @@ mod view_switcher;
 mod widget;
 mod widget_ext;
 
-pub use self::image::{Image, ImageData};
+pub use self::image::Image;
 pub use align::Align;
 pub use binding::{
     Bindable, BindableAccess, BindableProperty, Binding, BindingExt, BindingHost,

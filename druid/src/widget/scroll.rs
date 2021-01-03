@@ -16,13 +16,15 @@
 
 use std::f64::INFINITY;
 
-use crate::kurbo::{Point, Rect, Size, Vec2};
-use crate::widget::{Axis, Bindable, BindableProperty};
-use crate::{
-    scroll_component::*, BoxConstraints, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, UpdateCtx, Widget, WidgetPod,
-};
-use std::marker::PhantomData;
+use crate::widget::prelude::*;
+use crate::{scroll_component::*, Data, Vec2, WidgetPod};
+
+#[derive(Debug, Clone)]
+enum ScrollDirection {
+    Bidirectional,
+    Vertical,
+    Horizontal,
+}
 
 /// A container that scrolls its contents.
 ///
@@ -133,7 +135,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         self.scroll_component.event(ctx, event, env);
         if !ctx.is_handled() {
-            let viewport = Rect::from_origin_size(Point::ORIGIN, ctx.size());
+            let viewport = ctx.size().to_rect();
 
             let force_event = self.child.is_hot() || self.child.is_active();
             let child_event =
@@ -170,6 +172,7 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
         let child_bc = BoxConstraints::new(Size::ZERO, max_bc);
         let child_size = self.child.layout(ctx, &child_bc, data, env);
         log_size_warnings(child_size);
+        let old_size = self.scroll_component.content_size;
         self.scroll_component.content_size = child_size;
         self.child
             .set_layout_rect(ctx, data, env, child_size.to_rect());
@@ -179,6 +182,12 @@ impl<T: Data, W: Widget<T>> Widget<T> for Scroll<T, W> {
             .scroll_component
             .scroll_by(Vec2::new(0.0, 0.0), self_size);
         self.child.set_viewport_offset(self.offset());
+
+        if old_size != self.scroll_component.content_size {
+            self.scroll_component
+                .reset_scrollbar_fade(|d| ctx.request_timer(d), env);
+        }
+
         self_size
     }
 
