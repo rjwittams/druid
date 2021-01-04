@@ -74,7 +74,6 @@ impl_example!(open_save);
 impl_example!(panels.unwrap());
 impl_example!(scroll_colors);
 impl_example!(scroll);
-impl_example!(sync_scroll_binding);
 impl_example!(split_demo);
 impl_example!(styled_text.unwrap());
 impl_example!(switches);

@@ -18,13 +18,6 @@ use crate::widget::prelude::*;
 use crate::widget::{Axis, ClipBox};
 use crate::{scroll_component::*, Data, Rect, Vec2};
 
-#[derive(Debug, Clone)]
-enum ScrollDirection {
-    Bidirectional,
-    Vertical,
-    Horizontal,
-}
-
 /// A container that scrolls its contents.
 ///
 /// This container holds a single child, and uses the wheel to scroll it
@@ -40,7 +33,6 @@ enum ScrollDirection {
 pub struct Scroll<T, W> {
     clip: ClipBox<T, W>,
     scroll_component: ScrollComponent,
-    direction: ScrollDirection,
 }
 
 impl<T, W: Widget<T>> Scroll<T, W> {
@@ -53,13 +45,11 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         Scroll {
             clip: ClipBox::new(child),
             scroll_component: ScrollComponent::new(),
-            direction: ScrollDirection::Bidirectional,
         }
     }
 
     /// Restrict scrolling to the vertical axis while locking child width.
     pub fn vertical(mut self) -> Self {
-        self.direction = ScrollDirection::Vertical;
         self.scroll_component.enabled = ScrollbarsEnabled::Vertical;
         self.clip.set_constrain_vertical(false);
         self.clip.set_constrain_horizontal(true);
@@ -68,7 +58,6 @@ impl<T, W: Widget<T>> Scroll<T, W> {
 
     /// Restrict scrolling to the horizontal axis while locking child height.
     pub fn horizontal(mut self) -> Self {
-        self.direction = ScrollDirection::Horizontal;
         self.scroll_component.enabled = ScrollbarsEnabled::Horizontal;
         self.clip.set_constrain_vertical(true);
         self.clip.set_constrain_horizontal(false);
