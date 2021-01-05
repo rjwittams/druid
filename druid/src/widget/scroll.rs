@@ -70,18 +70,6 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         self
     }
 
-    /// Enable just vertical scrollbar
-    pub fn only_vertical_scrollbar(mut self) -> Self {
-        self.scroll_component.enabled = ScrollbarsEnabled::Vertical;
-        self
-    }
-
-    /// Enable just horizontal scrollbar
-    pub fn only_horizontal_scrollbar(mut self) -> Self {
-        self.scroll_component.enabled = ScrollbarsEnabled::Horizontal;
-        self
-    }
-
     /// Returns a reference to the child widget.
     pub fn child(&self) -> &W {
         self.clip.child()

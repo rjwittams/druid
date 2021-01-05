@@ -19,22 +19,13 @@ use std::time::Duration;
 
 use crate::kurbo::{Point, Rect, Vec2};
 use crate::theme;
-use crate::widget::Viewport;
+use crate::widget::{Axis, Viewport};
 use crate::{Env, Event, EventCtx, LifeCycle, LifeCycleCtx, PaintCtx, RenderContext, TimerToken};
 
 //TODO: Add this to env
 /// Minimum length for any scrollbar to be when measured on that
 /// scrollbar's primary axis.
 pub const SCROLLBAR_MIN_SIZE: f64 = 45.0;
-
-/// The direction of a scroll bar.
-#[derive(Debug, Clone)]
-pub enum ScrollDirection {
-    /// Scrolling on the x axis
-    Horizontal,
-    /// Scrolling on the y axis
-    Vertical,
-}
 
 #[derive(Debug, Copy, Clone)]
 /// Which scroll bars of a scroll area are currently enabled.
@@ -50,11 +41,15 @@ pub enum ScrollbarsEnabled {
 }
 
 impl ScrollbarsEnabled {
-    fn is_enabled(self, direction: ScrollDirection) -> bool {
-        matches!((self, direction),
+    fn is_enabled(self, axis: Axis) -> bool {
+        matches!((self, axis),
              (ScrollbarsEnabled::Both, _) |
-             (ScrollbarsEnabled::Horizontal, ScrollDirection::Horizontal) |
-             (ScrollbarsEnabled::Vertical, ScrollDirection::Vertical))
+             (ScrollbarsEnabled::Horizontal, Axis::Horizontal) |
+             (ScrollbarsEnabled::Vertical, Axis::Vertical))
+    }
+
+    fn is_none(self) -> bool {
+        matches!(self, ScrollbarsEnabled::None)
     }
 }
 
@@ -250,12 +245,8 @@ impl ScrollComponent {
     /// Draw scroll bars.
     pub fn draw_bars(&self, ctx: &mut PaintCtx, port: &Viewport, env: &Env) {
         let scroll_offset = port.rect.origin().to_vec2();
-        let (draw_vertical, draw_horizontal) = (
-            self.enabled.is_enabled(ScrollDirection::Horizontal),
-            self.enabled.is_enabled(ScrollDirection::Vertical),
-        );
 
-        if !(draw_vertical || draw_horizontal) || self.opacity <= 0.0 {
+        if self.enabled.is_none() || self.opacity <= 0.0 {
             return;
         }
 
@@ -271,7 +262,7 @@ impl ScrollComponent {
         let edge_width = env.get(theme::SCROLLBAR_EDGE_WIDTH);
 
         // Vertical bar
-        if draw_vertical {
+        if self.enabled.is_enabled(Axis::Vertical) {
             if let Some(bounds) = self.calc_vertical_bar_bounds(port, env) {
                 let rect = (bounds - scroll_offset)
                     .inset(-edge_width / 2.0)
@@ -282,7 +273,7 @@ impl ScrollComponent {
         }
 
         // Horizontal bar
-        if draw_horizontal {
+        if self.enabled.is_enabled(Axis::Horizontal) {
             if let Some(bounds) = self.calc_horizontal_bar_bounds(port, env) {
                 let rect = (bounds - scroll_offset)
                     .inset(-edge_width / 2.0)
@@ -297,7 +288,7 @@ impl ScrollComponent {
     ///
     /// Returns false if the vertical scrollbar is not visible
     pub fn point_hits_vertical_bar(&self, port: &Viewport, pos: Point, env: &Env) -> bool {
-        if !self.enabled.is_enabled(ScrollDirection::Vertical) {
+        if !self.enabled.is_enabled(Axis::Vertical) {
             return false;
         }
         let viewport_size = port.rect.size();
@@ -316,7 +307,7 @@ impl ScrollComponent {
     ///
     /// Returns false if the horizontal scrollbar is not visible
     pub fn point_hits_horizontal_bar(&self, port: &Viewport, pos: Point, env: &Env) -> bool {
-        if !self.enabled.is_enabled(ScrollDirection::Horizontal) {
+        if !self.enabled.is_enabled(Axis::Horizontal) {
             return false;
         }
         let viewport_size = port.rect.size();
