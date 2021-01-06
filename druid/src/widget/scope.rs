@@ -248,7 +248,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
 }
 
 impl<
-        F: Fn(Transfer::In) -> Transfer::State,
+        F: FnOnce(Transfer::In) -> Transfer::State,
         Transfer: ScopeTransfer,
         W: Widget<Transfer::State>,
     > Scope<DefaultScopePolicy<F, Transfer>, W>
