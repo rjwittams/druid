@@ -4,6 +4,7 @@ use crate::{
     PaintCtx, RenderContext, Size, UpdateCtx, Vec2, Widget,
 };
 use std::f64::consts::PI;
+use druid_shell::Region;
 
 /// A widget that rotates its child by an integral number of quarter turns
 pub struct Rotated<W> {
@@ -21,6 +22,14 @@ impl<W> Rotated<W> {
             transforms: None,
         }
     }
+}
+
+fn transformed_region(region: &Region, transform: Affine) -> Region {
+    let mut temp = Region::EMPTY.clone();
+    for rect in region.rects() {
+        temp.add_rect(transform.transform_rect_bbox(*rect));
+    }
+    temp
 }
 
 impl<W> Rotated<W> {
@@ -46,6 +55,43 @@ impl<W> Rotated<W> {
         me
     }
 }
+/*
+fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+        if let Some((_, inverse)) = self.transforms {
+            ctx.with_invalid_region(|reg|{
+                transformed_region(reg, inverse)
+            }, |ctx|{
+                match event {
+                    MouseMove(me) => self.child.event(
+                        ctx,
+                        &Event::MouseMove(self.translate_mouse_event(inverse, me)),
+                        data,
+                        env,
+                    ),
+                    MouseDown(me) => self.child.event(
+                        ctx,
+                        &Event::MouseDown(self.translate_mouse_event(inverse, me)),
+                        data,
+                        env,
+                    ),
+                    MouseUp(me) => self.child.event(
+                        ctx,
+                        &Event::MouseUp(self.translate_mouse_event(inverse, me)),
+                        data,
+                        env,
+                    ),
+                    Wheel(me) => self.child.event(
+                        ctx,
+                        &Event::Wheel(self.translate_mouse_event(inverse, me)),
+                        data,
+                        env,
+                    ),
+                    _ => self.child.event(ctx, event, data, env),
+                }
+            });
+        }
+    }
+ */
 
 impl<T, W: Widget<T>> Widget<T> for Rotated<W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
