@@ -16,13 +16,14 @@
 
 use crate::kurbo::Size;
 use crate::widget::prelude::*;
+use crate::widget::WidgetWrapper;
 use crate::Data;
 
 /// A wrapper that adds an identity to an otherwise anonymous widget.
 pub struct IdentityWrapper<W> {
     id: WidgetId,
     /// The wrapped widget
-    pub inner: W,
+    inner: W,
 }
 
 impl<W> IdentityWrapper<W> {
@@ -56,4 +57,8 @@ impl<T: Data, W: Widget<T>> Widget<T> for IdentityWrapper<W> {
     fn id(&self) -> Option<WidgetId> {
         Some(self.id)
     }
+}
+
+impl<W> WidgetWrapper for IdentityWrapper<W> {
+    widget_wrapper_body!(W, inner);
 }

@@ -21,6 +21,7 @@
 use std::marker::PhantomData;
 
 use crate::widget::prelude::*;
+use crate::widget::WidgetWrapper;
 use crate::{Data, Lens};
 
 /// A wrapper for its widget subtree to have access to a part
@@ -45,7 +46,7 @@ use crate::{Data, Lens};
 /// [`Lens`]: trait.Lens.html
 pub struct LensWrap<T, U, L, W> {
     /// The wrapped widget
-    pub inner: W,
+    inner: W,
     lens: L,
     // The following is a workaround for otherwise getting E0207.
     // the 'in' data type of the lens
@@ -114,4 +115,8 @@ where
     fn id(&self) -> Option<WidgetId> {
         self.inner.id()
     }
+}
+
+impl<T, U, L, W> WidgetWrapper for LensWrap<T, U, L, W> {
+    widget_wrapper_body!(W, inner);
 }

@@ -253,8 +253,6 @@ impl_context_method!(
     }
 );
 
-
-
 impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, {
     /// Set the cursor icon.
     ///
@@ -562,16 +560,6 @@ impl EventCtx<'_, '_> {
     /// particular to make that data available in the app state.
     pub fn request_update(&mut self) {
         self.widget_state.request_update = true;
-    }
-
-    pub fn with_invalid_region(&mut self, make_region: impl Fn(&Region)->Region, f: impl FnOnce(&mut EventCtx)){
-
-        let mut temp_region = make_region(dbg!(&self.widget_state.invalid));
-        std::mem::swap(&mut temp_region, &mut self.widget_state.invalid);
-        dbg!(&self.widget_state.invalid);
-        f(self);
-        std::mem::swap( &mut temp_region, &mut self.widget_state.invalid);
-        dbg!(&self.widget_state.invalid);
     }
 }
 
