@@ -816,6 +816,12 @@ impl<T: Data> Widget<T> for Flex<T> {
             ctx.stroke_styled(line, &color, 1.0, &stroke_style);
         }
     }
+
+    fn post_render(&mut self) {
+        for child in &mut self.children {
+            child.widget.post_render();
+        }
+    }
 }
 
 impl CrossAxisAlignment {
