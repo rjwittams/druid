@@ -58,6 +58,7 @@ mod view_switcher;
 #[allow(clippy::module_inception)]
 mod widget;
 mod widget_ext;
+mod with_info;
 
 pub use self::image::Image;
 pub use added::Added;
@@ -71,7 +72,7 @@ pub use container::Container;
 pub use controller::{Controller, ControllerHost};
 pub use either::Either;
 pub use env_scope::EnvScope;
-pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
+pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment, FLEX_PARAMS, ForEachContent};
 pub use identity_wrapper::IdentityWrapper;
 pub use label::{Label, LabelText, LineBreaking, RawLabel};
 pub use lens_wrap::LensWrap;
@@ -99,6 +100,8 @@ pub use widget::{Widget, WidgetId};
 #[doc(hidden)]
 pub use widget_ext::WidgetExt;
 pub use widget_wrapper::WidgetWrapper;
+
+pub use with_info::WithInfo;
 
 /// The types required to implement a `Widget`.
 ///

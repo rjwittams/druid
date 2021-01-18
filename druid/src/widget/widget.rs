@@ -16,6 +16,8 @@ use std::num::NonZeroU64;
 use std::ops::{Deref, DerefMut};
 
 use super::prelude::*;
+use crate::command::SelectorSymbol;
+use std::any::Any;
 
 /// A unique identifier for a single [`Widget`].
 ///
@@ -196,6 +198,11 @@ pub trait Widget<T> {
     /// You should not override this method.
     fn type_name(&self) -> &'static str {
         std::any::type_name::<Self>()
+    }
+
+    #[allow(unused_variables)]
+    fn info_raw(&self, symbol: SelectorSymbol) -> Option<&dyn Any> {
+        None
     }
 }
 

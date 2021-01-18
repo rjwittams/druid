@@ -17,7 +17,10 @@
 use crate::kurbo::common::FloatExt;
 use crate::widget::prelude::*;
 use crate::widget::SizedBox;
-use crate::{Data, KeyOrValue, Point, Rect, WidgetPod};
+use crate::{Data, KeyOrValue, Point, Rect, WidgetPod, WidgetExt, Selector};
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::ops::{Deref, DerefMut};
 
 /// A container with either horizontal or vertical layout.
 ///
@@ -140,10 +143,165 @@ pub struct Flex<T> {
     cross_alignment: CrossAxisAlignment,
     main_alignment: MainAxisAlignment,
     fill_major_axis: bool,
-    children: Vec<ChildWidget<T>>,
+    content: Box<dyn FlexContent<T>>
 }
 
-struct ChildWidget<T> {
+struct StaticFlexContent<T>{
+    children: Vec<ChildWidget<T>>
+}
+
+pub trait FlexContent<T>{
+    fn content_added(&mut self, data: &T, env: &Env);
+    fn update(&mut self, old_data: &T, data: &T, env: &Env);
+    fn add_child_widget(&mut self, cw: ChildWidget<T>)->bool;
+    fn child_mut(&mut self, idx: usize)->Option<&mut ChildWidget<T>>;
+    fn last_child(&self)->Option<&ChildWidget<T>>;
+    fn len(&self) -> usize;
+}
+
+impl <T> FlexContent<T> for Box<dyn FlexContent<T>>{
+    fn content_added(&mut self, data: &T, env: &Env) {
+        self.deref_mut().content_added(data, env)
+    }
+
+    fn update(&mut self, old_data: &T, data: &T, env: &Env) {
+        self.deref_mut().update(old_data, data, env)
+    }
+
+    fn add_child_widget(&mut self, cw: ChildWidget<T>) -> bool {
+        self.deref_mut().add_child_widget(cw)
+    }
+
+    fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>> {
+        self.deref_mut().child_mut(idx)
+    }
+
+    fn last_child(&self) -> Option<&ChildWidget<T>> {
+        self.deref().last_child()
+    }
+
+    fn len(&self) -> usize {
+        self.deref().len()
+    }
+}
+
+trait FlexContentExt<T>: FlexContent<T>{
+    fn for_each_child(&mut self, mut f: impl FnMut(&mut ChildWidget<T>)){
+        for idx in 0..self.len() {
+           if let Some(child) = self.child_mut(idx){
+               f(child)
+           }
+        }
+    }
+}
+
+impl <T, F: FlexContent<T>> FlexContentExt<T> for F{
+
+}
+
+impl<T: Data> StaticFlexContent<T> {
+    fn new() -> Self {
+        StaticFlexContent{
+            children: Default::default()
+        }
+    }
+}
+
+impl<T: Data> FlexContent<T> for StaticFlexContent<T> {
+    fn content_added(&mut self, data: &T, env: &Env) {
+    }
+
+
+    fn update(&mut self, _old_data: &T, _data: &T, _env: &Env) {
+    }
+
+    fn add_child_widget(&mut self, cw: ChildWidget<T>) -> bool {
+        self.children.push(cw);
+        true
+    }
+
+    fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>> {
+        self.children.get_mut(idx)
+    }
+
+    fn last_child(&self)->Option<&ChildWidget<T>> {
+        self.children.last()
+    }
+
+    fn len(&self) -> usize {
+        self.children.len()
+    }
+}
+
+type ValuesFromData<T, K> = dyn Fn(&T, &Env)->Vec<K>;
+type WidgetFromValue<T, K> = dyn Fn(&T, &Env, &K)->ChildWidget<T>;
+
+pub struct ForEachContent<T, K>{
+    values_from_data: Box<ValuesFromData<T, K>>,
+    make_widget: Box<WidgetFromValue<T, K>>,
+    values: Vec<K>,
+    child_widgets: HashMap<K, ChildWidget<T>>
+}
+
+impl <T: Data, K> ForEachContent<T, K>{
+    pub fn new<I: IntoIterator<Item=K>, W: Widget<T> + 'static>(values_from_data: impl Fn(&T, &Env)->I + 'static, make_widget: impl Fn(&T, &Env, &K)->W + 'static)->Self{
+        ForEachContent{
+            values_from_data: Box::new( move |data, env|{values_from_data(data, env).into_iter().collect()} ),
+            make_widget: Box::new(move |data, env, key|{
+                let widget = make_widget(data, env, key);
+                let params = widget.info(FLEX_PARAMS).cloned().unwrap_or(FlexParams::new(0., None));
+                ChildWidget{
+                    widget: WidgetPod::new(Box::new(widget)),
+                    params
+                }
+            } ),
+            values: vec![],
+            child_widgets: Default::default()
+        }
+    }
+}
+
+impl<T: Data, K: Hash + Eq + Clone> FlexContent<T> for ForEachContent<T, K> {
+    fn content_added(&mut self, data: &T, env: &Env) {
+        self.values = (*self.values_from_data)(data, env);
+        let make_widget = &self.make_widget;
+        for value in &self.values{
+            self.child_widgets.entry(value.clone()).or_insert_with(||{
+                (*make_widget)(data, env, value)
+            });
+        }
+    }
+
+    fn update(&mut self, old_data: &T, data: &T, env: &Env) {
+        if !old_data.same(data){
+            self.content_added(data, env)
+        }
+    }
+
+    fn add_child_widget(&mut self, _cw: ChildWidget<T>) -> bool {
+        false
+    }
+
+    fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>> {
+        let child_widgets = &mut self.child_widgets;
+        if let Some(val) = self.values.get(idx){
+            child_widgets.get_mut(val)
+        }else{
+            None
+        }
+    }
+
+    fn last_child(&self)->Option<&ChildWidget<T>> {
+        self.values.last().and_then(|val| self.child_widgets.get(val))
+    }
+
+    fn len(&self) -> usize {
+        self.values.len()
+    }
+}
+
+
+pub struct ChildWidget<T> {
     widget: WidgetPod<T, Box<dyn Widget<T>>>,
     params: FlexParams,
 }
@@ -356,6 +514,8 @@ impl FlexParams {
     }
 }
 
+pub const FLEX_PARAMS: Selector<FlexParams> = Selector::new("druid.builtin.flex-params");
+
 impl<T> ChildWidget<T> {
     fn new(child: impl Widget<T> + 'static, params: FlexParams) -> Self {
         ChildWidget {
@@ -367,14 +527,18 @@ impl<T> ChildWidget<T> {
 
 impl<T: Data> Flex<T> {
     /// Create a new Flex oriented along the provided axis.
-    pub fn for_axis(axis: Axis) -> Self {
+    pub fn for_axis_content(axis: Axis, content: impl FlexContent<T> + 'static) -> Self {
         Flex {
             direction: axis,
-            children: Vec::new(),
+            content: Box::new(content),
             cross_alignment: CrossAxisAlignment::Center,
             main_alignment: MainAxisAlignment::Start,
             fill_major_axis: false,
         }
+    }
+
+    pub fn for_axis(axis: Axis) -> Self{
+        Self::for_axis_content(axis, StaticFlexContent::new())
     }
 
     /// Create a new horizontal stack.
@@ -431,7 +595,8 @@ impl<T: Data> Flex<T> {
     ///
     /// Convenient for assembling a group of widgets in a single expression.
     pub fn with_child(mut self, child: impl Widget<T> + 'static) -> Self {
-        self.add_flex_child(child, 0.0);
+        let params = child.info(FLEX_PARAMS).cloned().unwrap_or(FlexParams::new(0., None));
+        self.add_flex_child(child, params);
         self
     }
 
@@ -556,7 +721,7 @@ impl<T: Data> Flex<T> {
         params: impl Into<FlexParams>,
     ) {
         let child = ChildWidget::new(child, params.into());
-        self.children.push(child);
+        self.content.add_child_widget(child);
     }
 
     /// Add a spacer widget with a standard size.
@@ -593,29 +758,36 @@ impl<T: Data> Flex<T> {
         };
         self.add_flex_child(child, flex);
     }
+
 }
 
 impl<T: Data> Widget<T> for Flex<T> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        for child in &mut self.children {
+        self.content.for_each_child(|child|{
             child.widget.event(ctx, event, data, env);
-        }
+        });
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
-        for child in &mut self.children {
-            child.widget.lifecycle(ctx, event, data, env);
+        if let LifeCycle::WidgetAdded = event{
+            self.content.content_added(data, env);
         }
+        self.content.for_each_child(|child|{
+            child.widget.lifecycle(ctx, event, data, env);
+        })
     }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &T, data: &T, env: &Env) {
-        for child in &mut self.children {
+    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
+        self.content.update(old_data, data, env);
+
+        self.content.for_each_child(|child|{
             child.widget.update(ctx, data, env);
-        }
+        })
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         bc.debug_check("Flex");
+        let Flex{direction, cross_alignment, ..} = *self;
         // we loosen our constraints when passing to children.
         let loosened_bc = bc.loosen();
 
@@ -628,13 +800,12 @@ impl<T: Data> Widget<T> for Flex<T> {
 
         // Measure non-flex children.
         let mut major_non_flex = 0.0;
-        for child in &mut self.children {
+
+        self.content.for_each_child(|child|{
             any_use_baseline &= child.params.alignment == Some(CrossAxisAlignment::Baseline);
 
             if child.params.flex == 0.0 {
-                let child_bc = self
-                    .direction
-                    .constraints(&loosened_bc, 0., std::f64::INFINITY);
+                let child_bc = direction.constraints(&loosened_bc, 0., std::f64::INFINITY);
                 let child_size = child.widget.layout(ctx, &child_bc, data, env);
                 let baseline_offset = child.widget.baseline_offset();
 
@@ -646,39 +817,41 @@ impl<T: Data> Widget<T> for Flex<T> {
                     log::warn!("A non-Flex child has an infinite height.");
                 }
 
-                major_non_flex += self.direction.major(child_size).expand();
-                minor = minor.max(self.direction.minor(child_size).expand());
+                major_non_flex += direction.major(child_size).expand();
+                minor = minor.max(direction.minor(child_size).expand());
                 max_above_baseline = max_above_baseline.max(child_size.height - baseline_offset);
                 max_below_baseline = max_below_baseline.max(baseline_offset);
             }
-        }
+        });
 
-        let total_major = self.direction.major(bc.max());
+        let total_major = direction.major(bc.max());
         let remaining = (total_major - major_non_flex).max(0.0);
         let mut remainder: f64 = 0.0;
-        let flex_sum: f64 = self.children.iter().map(|child| child.params.flex).sum();
+        let mut flex_sum: f64 = 0.0;
+        self.content.for_each_child(|child|{
+            flex_sum += child.params.flex;
+        });
         let mut major_flex: f64 = 0.0;
 
         // Measure flex children.
-        for child in &mut self.children {
+        self.content.for_each_child(|child|{
             if child.params.flex != 0.0 {
                 let desired_major = remaining * child.params.flex / flex_sum + remainder;
                 let actual_major = desired_major.round();
                 remainder = desired_major - actual_major;
                 let min_major = 0.0;
 
-                let child_bc = self
-                    .direction
+                let child_bc = direction
                     .constraints(&loosened_bc, min_major, actual_major);
                 let child_size = child.widget.layout(ctx, &child_bc, data, env);
                 let baseline_offset = child.widget.baseline_offset();
 
-                major_flex += self.direction.major(child_size).expand();
-                minor = minor.max(self.direction.minor(child_size).expand());
+                major_flex += direction.major(child_size).expand();
+                minor = minor.max(direction.minor(child_size).expand());
                 max_above_baseline = max_above_baseline.max(child_size.height - baseline_offset);
                 max_below_baseline = max_below_baseline.max(baseline_offset);
             }
-        }
+        });
 
         // figure out if we have extra space on major axis, and if so how to use it
         let extra = if self.fill_major_axis {
@@ -689,7 +862,7 @@ impl<T: Data> Widget<T> for Flex<T> {
             (self.direction.major(bc.min()) - (major_non_flex + major_flex)).max(0.0)
         };
 
-        let mut spacing = Spacing::new(self.main_alignment, extra, self.children.len());
+        let mut spacing = Spacing::new(self.main_alignment, extra, self.content.len());
 
         // the actual size needed to tightly fit the children on the minor axis.
         // Unlike the 'minor' var, this ignores the incoming constraints.
@@ -700,30 +873,30 @@ impl<T: Data> Widget<T> for Flex<T> {
 
         let mut major = spacing.next().unwrap_or(0.);
         let mut child_paint_rect = Rect::ZERO;
-        for child in &mut self.children {
+        self.content.for_each_child(|child|{
             let child_size = child.widget.layout_rect().size();
-            let alignment = child.params.alignment.unwrap_or(self.cross_alignment);
+            let alignment = child.params.alignment.unwrap_or(cross_alignment);
             let child_minor_offset = match alignment {
                 // This will ignore baseline alignment if it is overridden on children,
                 // but is not the default for the container. Is this okay?
-                CrossAxisAlignment::Baseline if matches!(self.direction, Axis::Horizontal) => {
+                CrossAxisAlignment::Baseline if matches!(direction, Axis::Horizontal) => {
                     let extra_height = minor - minor_dim.min(minor);
                     let child_baseline = child.widget.baseline_offset();
                     let child_above_baseline = child_size.height - child_baseline;
                     extra_height + (max_above_baseline - child_above_baseline)
                 }
                 _ => {
-                    let extra_minor = minor_dim - self.direction.minor(child_size);
+                    let extra_minor = minor_dim - direction.minor(child_size);
                     alignment.align(extra_minor)
                 }
             };
 
-            let child_pos: Point = self.direction.pack(major, child_minor_offset).into();
+            let child_pos: Point = direction.pack(major, child_minor_offset).into();
             child.widget.set_origin(ctx, data, env, child_pos);
             child_paint_rect = child_paint_rect.union(child.widget.paint_rect());
-            major += self.direction.major(child_size).expand();
+            major += direction.major(child_size).expand();
             major += spacing.next().unwrap_or(0.);
-        }
+        });
 
         if flex_sum > 0.0 && total_major.is_infinite() {
             log::warn!("A child of Flex is flex, but Flex is unbounded.")
@@ -752,8 +925,8 @@ impl<T: Data> Widget<T> for Flex<T> {
         let baseline_offset = match self.direction {
             Axis::Horizontal => max_below_baseline,
             Axis::Vertical => self
-                .children
-                .last()
+                .content
+                .last_child()
                 .map(|last| {
                     let child_bl = last.widget.baseline_offset();
                     let child_max_y = last.widget.layout_rect().max_y();
@@ -768,9 +941,9 @@ impl<T: Data> Widget<T> for Flex<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        for child in &mut self.children {
+        self.content.for_each_child(|child|{
             child.widget.paint(ctx, data, env);
-        }
+        });
 
         // paint the baseline if we're debugging layout
         if env.get(Env::DEBUG_PAINT) && ctx.widget_state.baseline_offset != 0.0 {

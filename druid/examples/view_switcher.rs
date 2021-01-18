@@ -14,7 +14,7 @@
 
 //! This example demonstrates the `ViewSwitcher` widget
 
-use druid::widget::{Button, Flex, Label, Split, TextBox, ViewSwitcher};
+use druid::widget::{Button, Flex, Label, Split, TextBox, ViewSwitcher, FLEX_PARAMS, Axis, ForEachContent};
 use druid::{AppLauncher, Data, Env, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
 
 #[derive(Clone, Data, Lens)]
@@ -41,7 +41,7 @@ fn make_ui() -> impl Widget<AppState> {
         Label::new(|data: &u32, _env: &Env| format!("Current view: {}", data))
             .lens(AppState::current_view),
     );
-    for i in 0..6 {
+    for i in 0..7 {
         switcher_column.add_spacer(80.);
         switcher_column.add_child(
             Button::new(format!("View {}", i))
@@ -88,6 +88,26 @@ fn make_ui() -> impl Widget<AppState> {
                     Label::new("Right split").center(),
                 )
                 .draggable(true),
+            ),
+            5 => Box::new(
+                Flex::column()
+                    .with_child(Label::new("Here is a label").center().flex(1.0) )
+                    .with_child(
+                        Button::new("Button").on_click(|_event, _data, _env| {
+                            println!("Complex button clicked!");
+                        }).flex(1.0),
+                    )
+                    .with_child(TextBox::new().lens(AppState::current_text).flex(1.0))
+                    .with_child(
+                        Label::new(|data: &String, _env: &Env| format!("Value entered: {}", data))
+                            .lens(AppState::current_text).flex(1.0),
+                    ),
+            ),
+            6 => Box::new(
+                Flex::for_axis_content(Axis::Vertical,
+                                       ForEachContent::new(
+                                           |data, env|{vec![1, 2, 3]},
+                                           |data, env, k| Label::new(format!("idx: {}", k) ).flex(1.5) ))
             ),
             _ => Box::new(Label::new("Unknown").center()),
         },
