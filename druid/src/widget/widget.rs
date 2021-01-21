@@ -16,8 +16,7 @@ use std::num::NonZeroU64;
 use std::ops::{Deref, DerefMut};
 
 use super::prelude::*;
-use crate::command::SelectorSymbol;
-use std::any::Any;
+use std::any::{Any, TypeId};
 
 /// A unique identifier for a single [`Widget`].
 ///
@@ -201,7 +200,7 @@ pub trait Widget<T> {
     }
 
     #[allow(unused_variables)]
-    fn info_raw(&self, symbol: SelectorSymbol) -> Option<&dyn Any> {
+    fn augmentation_raw(&self, type_id: TypeId) -> Option<&dyn Any> {
         None
     }
 }

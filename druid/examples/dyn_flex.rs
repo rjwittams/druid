@@ -14,7 +14,7 @@
 
 use druid::widget::prelude::*;
 use druid::widget::{
-    Axis, Checkbox, ConditionalContent, Flex, FlexContentExt, ForEachContent, Label, StaticContent,
+    Axis, Checkbox, ConditionalContent, Flex, ContentExt, ForEachContent, Label, StaticContent,
     Stepper,
 };
 use druid::{AppLauncher, Color, Data, Lens, LensExt, WidgetExt, WindowDesc};

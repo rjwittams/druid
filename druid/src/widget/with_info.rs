@@ -1,29 +1,21 @@
-use crate::command::SelectorSymbol;
 use crate::widget::prelude::*;
-use crate::Selector;
-use std::any::Any;
-use std::collections::HashMap;
+use std::any::{Any, TypeId};
 
-pub struct WithInfo<W> {
+pub struct Augmented<W, Aug> {
     widget: W,
-    info: HashMap<SelectorSymbol, Box<dyn Any>>,
+    augment: Aug,
 }
 
-impl<W> WithInfo<W> {
-    pub fn new(widget: W) -> Self {
-        WithInfo {
+impl<W, Aug> Augmented<W, Aug> {
+    pub fn new(widget: W, augment: Aug) -> Self {
+        Augmented {
             widget,
-            info: Default::default(),
+            augment,
         }
     }
-
-    pub fn with_info<I: 'static>(mut self, selector: Selector<I>, payload: I) -> Self {
-        self.info.insert(selector.symbol(), Box::new(payload));
-        self
-    }
 }
 
-impl<T, W: Widget<T>> Widget<T> for WithInfo<W> {
+impl<T, W: Widget<T>, Aug: 'static> Widget<T> for Augmented<W, Aug> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         self.widget.event(ctx, event, data, env)
     }
@@ -44,10 +36,11 @@ impl<T, W: Widget<T>> Widget<T> for WithInfo<W> {
         self.widget.paint(ctx, data, env)
     }
 
-    fn info_raw(&self, symbol: SelectorSymbol) -> Option<&dyn Any> {
-        self.info
-            .get(symbol)
-            .map(|x| &**x)
-            .or_else(|| self.widget.info_raw(symbol))
+    fn augmentation_raw(&self, type_id: TypeId) -> Option<&dyn Any> {
+        if TypeId::of::<Aug>() == type_id {
+            Some(&self.augment)
+        }else{
+            self.widget.augmentation_raw(type_id)
+        }
     }
 }

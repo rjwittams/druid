@@ -17,12 +17,12 @@
 use super::invalidation::DebugInvalidation;
 use super::{
     Added, Align, BackgroundBrush, Click, Container, Controller, ControllerHost, EnvScope,
-    IdentityWrapper, LensWrap, Padding, Parse, SizedBox, WidgetId,
+    IdentityWrapper, LensWrap, Padding, Parse, SizedBox, WidgetId, FlexParams, Augmented
 };
-use crate::widget::{FlexParams, StaticContent, WithInfo, FLEX_PARAMS};
 use crate::{
-    Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LifeCycleCtx, Selector, UnitPoint, Widget,
+    Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LifeCycleCtx, UnitPoint, Widget,
 };
+use std::any::{Any, TypeId};
 
 /// A trait that provides extra methods for combining `Widget`s.
 pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
@@ -264,19 +264,16 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
         Box::new(self)
     }
 
-    fn info<S: 'static>(&self, selector: Selector<S>) -> Option<&S> {
-        match self.info_raw(selector.symbol()) {
-            Some(c) => c.downcast_ref(),
-            None => None,
-        }
+    fn augmentation<Aug: 'static>(&self) -> Option<&Aug> {
+        self.augmentation_raw(TypeId::of::<Aug>()).and_then(Any::downcast_ref)
     }
 
-    fn with_info<S: 'static>(self, selector: Selector<S>, info: impl Into<S>) -> WithInfo<Self> {
-        WithInfo::new(self).with_info(selector, info.into())
+    fn augment<Aug: 'static>(self, info: impl Into<Aug>) -> Augmented<Self, Aug> {
+        Augmented::new(self, info.into())
     }
 
-    fn flex(self, flex: impl Into<FlexParams>) -> WithInfo<Self> {
-        self.with_info(FLEX_PARAMS, flex)
+    fn flex(self, flex: impl Into<FlexParams>) -> Augmented<Self, FlexParams> {
+        self.augment(flex)
     }
 }
 
