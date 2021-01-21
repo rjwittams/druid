@@ -19,8 +19,10 @@ use super::{
     Added, Align, BackgroundBrush, Click, Container, Controller, ControllerHost, EnvScope,
     IdentityWrapper, LensWrap, Padding, Parse, SizedBox, WidgetId,
 };
-use crate::{Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LifeCycleCtx, UnitPoint, Widget, Selector};
-use crate::widget::{WithInfo, FlexParams, FLEX_PARAMS};
+use crate::widget::{FlexParams, StaticContent, WithInfo, FLEX_PARAMS};
+use crate::{
+    Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LifeCycleCtx, Selector, UnitPoint, Widget,
+};
 
 /// A trait that provides extra methods for combining `Widget`s.
 pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
@@ -263,17 +265,17 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
     }
 
     fn info<S: 'static>(&self, selector: Selector<S>) -> Option<&S> {
-        match self.info_raw(selector.symbol()){
-            Some(c)=>c.downcast_ref(),
-            None=>None
+        match self.info_raw(selector.symbol()) {
+            Some(c) => c.downcast_ref(),
+            None => None,
         }
     }
 
-    fn with_info<S: 'static>(self, selector: Selector<S>, info: impl Into<S>) -> WithInfo<Self>{
+    fn with_info<S: 'static>(self, selector: Selector<S>, info: impl Into<S>) -> WithInfo<Self> {
         WithInfo::new(self).with_info(selector, info.into())
     }
 
-    fn flex(self, flex: impl Into<FlexParams>)->WithInfo<Self>{
+    fn flex(self, flex: impl Into<FlexParams>) -> WithInfo<Self> {
         self.with_info(FLEX_PARAMS, flex)
     }
 }

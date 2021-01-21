@@ -1,26 +1,29 @@
-use crate::widget::prelude::*;
-use std::collections::HashMap;
 use crate::command::SelectorSymbol;
-use std::any::Any;
+use crate::widget::prelude::*;
 use crate::Selector;
+use std::any::Any;
+use std::collections::HashMap;
 
-pub struct WithInfo<W>{
+pub struct WithInfo<W> {
     widget: W,
-    info: HashMap<SelectorSymbol, Box<dyn Any>>
+    info: HashMap<SelectorSymbol, Box<dyn Any>>,
 }
 
-impl <W> WithInfo<W>{
+impl<W> WithInfo<W> {
     pub fn new(widget: W) -> Self {
-        WithInfo { widget, info: Default::default() }
+        WithInfo {
+            widget,
+            info: Default::default(),
+        }
     }
 
-    pub fn with_info<I: 'static>(mut self, selector: Selector<I>, payload: I)->Self{
-        self.info.insert(selector.symbol(), Box::new(payload) );
+    pub fn with_info<I: 'static>(mut self, selector: Selector<I>, payload: I) -> Self {
+        self.info.insert(selector.symbol(), Box::new(payload));
         self
     }
 }
 
-impl <T, W: Widget<T>> Widget<T> for WithInfo<W>{
+impl<T, W: Widget<T>> Widget<T> for WithInfo<W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
         self.widget.event(ctx, event, data, env)
     }
@@ -42,6 +45,9 @@ impl <T, W: Widget<T>> Widget<T> for WithInfo<W>{
     }
 
     fn info_raw(&self, symbol: SelectorSymbol) -> Option<&dyn Any> {
-        self.info.get(symbol).map(|x|&**x).or_else(||self.widget.info_raw(symbol))
+        self.info
+            .get(symbol)
+            .map(|x| &**x)
+            .or_else(|| self.widget.info_raw(symbol))
     }
 }

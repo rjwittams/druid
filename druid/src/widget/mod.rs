@@ -72,7 +72,10 @@ pub use container::Container;
 pub use controller::{Controller, ControllerHost};
 pub use either::Either;
 pub use env_scope::EnvScope;
-pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment, FLEX_PARAMS, ForEachContent};
+pub use flex::{
+    Axis, CrossAxisAlignment, Flex, FlexContent, FlexContentExt, FlexParams, ForEachContent,
+    MainAxisAlignment, StaticContent, ConditionalContent, FLEX_PARAMS,
+};
 pub use identity_wrapper::IdentityWrapper;
 pub use label::{Label, LabelText, LineBreaking, RawLabel};
 pub use lens_wrap::LensWrap;

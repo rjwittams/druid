@@ -17,10 +17,13 @@
 use crate::kurbo::common::FloatExt;
 use crate::widget::prelude::*;
 use crate::widget::SizedBox;
-use crate::{Data, KeyOrValue, Point, Rect, WidgetPod, WidgetExt, Selector};
-use std::collections::HashMap;
+use crate::{Data, KeyOrValue, Point, Rect, Selector, WidgetExt, WidgetPod};
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::fmt::Debug;
+use crate::menu::sys::mac::file::new_file;
 
 /// A container with either horizontal or vertical layout.
 ///
@@ -143,23 +146,19 @@ pub struct Flex<T> {
     cross_alignment: CrossAxisAlignment,
     main_alignment: MainAxisAlignment,
     fill_major_axis: bool,
-    content: Box<dyn FlexContent<T>>
+    content: Box<dyn FlexContent<T>>,
 }
 
-struct StaticFlexContent<T>{
-    children: Vec<ChildWidget<T>>
-}
-
-pub trait FlexContent<T>{
+pub trait FlexContent<T> {
     fn content_added(&mut self, data: &T, env: &Env);
     fn update(&mut self, old_data: &T, data: &T, env: &Env);
-    fn add_child_widget(&mut self, cw: ChildWidget<T>)->bool;
-    fn child_mut(&mut self, idx: usize)->Option<&mut ChildWidget<T>>;
-    fn last_child(&self)->Option<&ChildWidget<T>>;
+    fn add_child_widget(&mut self, cw: ChildWidget<T>) -> bool;
+    fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>>;
+    fn last_child(&self) -> Option<&ChildWidget<T>>;
     fn len(&self) -> usize;
 }
 
-impl <T> FlexContent<T> for Box<dyn FlexContent<T>>{
+impl<T> FlexContent<T> for Box<dyn FlexContent<T>> {
     fn content_added(&mut self, data: &T, env: &Env) {
         self.deref_mut().content_added(data, env)
     }
@@ -185,35 +184,60 @@ impl <T> FlexContent<T> for Box<dyn FlexContent<T>>{
     }
 }
 
-trait FlexContentExt<T>: FlexContent<T>{
-    fn for_each_child(&mut self, mut f: impl FnMut(&mut ChildWidget<T>)){
+pub trait FlexContentExt<T>: FlexContent<T> {
+    fn for_each_child(&mut self, mut f: impl FnMut(&mut ChildWidget<T>)) {
         for idx in 0..self.len() {
-           if let Some(child) = self.child_mut(idx){
-               f(child)
-           }
+            if let Some(child) = self.child_mut(idx) {
+                f(child)
+            }
+        }
+    }
+
+    fn then<Other: FlexContent<T>>(self, other: Other) -> ComposedContent<T, Self, Other>
+    where
+        Self: Sized,
+    {
+        ComposedContent {
+            phantom_t: Default::default(),
+            content1: self,
+            content2: other,
         }
     }
 }
 
-impl <T, F: FlexContent<T>> FlexContentExt<T> for F{
+impl<T, F: FlexContent<T>> FlexContentExt<T> for F {}
 
+pub struct StaticContent<T> {
+    children: Vec<ChildWidget<T>>,
 }
 
-impl<T: Data> StaticFlexContent<T> {
-    fn new() -> Self {
-        StaticFlexContent{
-            children: Default::default()
+impl<T> StaticContent<T> {
+    pub fn new() -> Self {
+        StaticContent {
+            children: Default::default(),
         }
     }
 }
 
-impl<T: Data> FlexContent<T> for StaticFlexContent<T> {
-    fn content_added(&mut self, data: &T, env: &Env) {
+impl<T: Data> StaticContent<T> {
+    pub fn of(w: impl Widget<T> + 'static) -> Self {
+        Self::new().with_child(w)
     }
 
-
-    fn update(&mut self, _old_data: &T, _data: &T, _env: &Env) {
+    pub fn with_child(mut self, w: impl Widget<T> + 'static) -> Self {
+        let params = w
+            .info(FLEX_PARAMS)
+            .cloned()
+            .unwrap_or(FlexParams::new(0., None));
+        self.add_child_widget(ChildWidget::new(w, params));
+        self
     }
+}
+
+impl<T: Data> FlexContent<T> for StaticContent<T> {
+    fn content_added(&mut self, data: &T, env: &Env) {}
+
+    fn update(&mut self, _old_data: &T, _data: &T, _env: &Env) {}
 
     fn add_child_widget(&mut self, cw: ChildWidget<T>) -> bool {
         self.children.push(cw);
@@ -224,7 +248,7 @@ impl<T: Data> FlexContent<T> for StaticFlexContent<T> {
         self.children.get_mut(idx)
     }
 
-    fn last_child(&self)->Option<&ChildWidget<T>> {
+    fn last_child(&self) -> Option<&ChildWidget<T>> {
         self.children.last()
     }
 
@@ -233,30 +257,40 @@ impl<T: Data> FlexContent<T> for StaticFlexContent<T> {
     }
 }
 
-type ValuesFromData<T, K> = dyn Fn(&T, &Env)->Vec<K>;
-type WidgetFromValue<T, K> = dyn Fn(&T, &Env, &K)->ChildWidget<T>;
+type ValuesFromData<T, K> = dyn Fn(&T, &Env) -> Vec<K>;
+type WidgetFromValue<T, K> = dyn Fn(&T, &Env, &K) -> ChildWidget<T>;
 
-pub struct ForEachContent<T, K>{
+pub struct ForEachContent<T, K> {
     values_from_data: Box<ValuesFromData<T, K>>,
     make_widget: Box<WidgetFromValue<T, K>>,
     values: Vec<K>,
-    child_widgets: HashMap<K, ChildWidget<T>>
+    child_widgets: HashMap<K, ChildWidget<T>>,
+    just_added: HashSet<usize>,
 }
 
-impl <T: Data, K> ForEachContent<T, K>{
-    pub fn new<I: IntoIterator<Item=K>, W: Widget<T> + 'static>(values_from_data: impl Fn(&T, &Env)->I + 'static, make_widget: impl Fn(&T, &Env, &K)->W + 'static)->Self{
-        ForEachContent{
-            values_from_data: Box::new( move |data, env|{values_from_data(data, env).into_iter().collect()} ),
-            make_widget: Box::new(move |data, env, key|{
+impl<T: Data, K> ForEachContent<T, K> {
+    pub fn new<I: IntoIterator<Item = K>, W: Widget<T> + 'static>(
+        values_from_data: impl Fn(&T, &Env) -> I + 'static,
+        make_widget: impl Fn(&T, &Env, &K) -> W + 'static,
+    ) -> Self {
+        ForEachContent {
+            values_from_data: Box::new(move |data, env| {
+                values_from_data(data, env).into_iter().collect()
+            }),
+            make_widget: Box::new(move |data, env, key| {
                 let widget = make_widget(data, env, key);
-                let params = widget.info(FLEX_PARAMS).cloned().unwrap_or(FlexParams::new(0., None));
-                ChildWidget{
+                let params = widget
+                    .info(FLEX_PARAMS)
+                    .cloned()
+                    .unwrap_or(FlexParams::new(0., None));
+                ChildWidget {
                     widget: WidgetPod::new(Box::new(widget)),
-                    params
+                    params,
                 }
-            } ),
-            values: vec![],
-            child_widgets: Default::default()
+            }),
+            values: Default::default(),
+            child_widgets: Default::default(),
+            just_added: Default::default(),
         }
     }
 }
@@ -265,15 +299,15 @@ impl<T: Data, K: Hash + Eq + Clone> FlexContent<T> for ForEachContent<T, K> {
     fn content_added(&mut self, data: &T, env: &Env) {
         self.values = (*self.values_from_data)(data, env);
         let make_widget = &self.make_widget;
-        for value in &self.values{
-            self.child_widgets.entry(value.clone()).or_insert_with(||{
+        for (idx, value) in self.values.iter().enumerate() {
+            self.child_widgets.entry(value.clone()).or_insert_with(|| {
                 (*make_widget)(data, env, value)
             });
         }
     }
 
     fn update(&mut self, old_data: &T, data: &T, env: &Env) {
-        if !old_data.same(data){
+        if !old_data.same(data) {
             self.content_added(data, env)
         }
     }
@@ -284,15 +318,17 @@ impl<T: Data, K: Hash + Eq + Clone> FlexContent<T> for ForEachContent<T, K> {
 
     fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>> {
         let child_widgets = &mut self.child_widgets;
-        if let Some(val) = self.values.get(idx){
+        if let Some(val) = self.values.get(idx) {
             child_widgets.get_mut(val)
-        }else{
+        } else {
             None
         }
     }
 
-    fn last_child(&self)->Option<&ChildWidget<T>> {
-        self.values.last().and_then(|val| self.child_widgets.get(val))
+    fn last_child(&self) -> Option<&ChildWidget<T>> {
+        self.values
+            .last()
+            .and_then(|val| self.child_widgets.get(val))
     }
 
     fn len(&self) -> usize {
@@ -300,6 +336,133 @@ impl<T: Data, K: Hash + Eq + Clone> FlexContent<T> for ForEachContent<T, K> {
     }
 }
 
+pub struct ComposedContent<T, Content1, Content2> {
+    phantom_t: PhantomData<T>,
+    content1: Content1,
+    content2: Content2,
+}
+
+impl<T, Content1: FlexContent<T>, Content2: FlexContent<T>> FlexContent<T>
+    for ComposedContent<T, Content1, Content2>
+{
+    fn content_added(&mut self, data: &T, env: &Env) {
+        self.content1.content_added(data, env);
+        self.content2.content_added(data, env);
+    }
+
+    fn update(&mut self, old_data: &T, data: &T, env: &Env) {
+        self.content1.update(old_data, data, env);
+        self.content2.update(old_data, data, env);
+    }
+
+    fn add_child_widget(&mut self, cw: ChildWidget<T>) -> bool {
+        self.content2.add_child_widget(cw)
+    }
+
+    fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>> {
+        let len1 = self.content1.len();
+        if idx < len1 {
+            self.content1.child_mut(idx)
+        } else {
+            self.content2.child_mut(idx - len1)
+        }
+    }
+
+    fn last_child(&self) -> Option<&ChildWidget<T>> {
+        self.content2
+            .last_child()
+            .or_else(|| self.content1.last_child())
+    }
+
+    fn len(&self) -> usize {
+        self.content1.len() + self.content2.len()
+    }
+}
+
+type ConditionFunc<T> = dyn Fn(&T, &Env)->bool;
+type ClauseFunc<T> = dyn Fn(&T, &Env)->Box<dyn FlexContent<T>>;
+
+pub struct ConditionalContent<T, ContentTrue, ContentFalse>{
+    condition: Box<ConditionFunc<T>>,
+    content_true: ContentTrue,
+    content_false: ContentFalse,
+    current: Option<bool>
+}
+
+impl <T: Data, ContentTrue> ConditionalContent<T, ContentTrue, StaticContent<T>>{
+    pub fn new_if(cond: impl Fn(&T, &Env)->bool + 'static, content_true: ContentTrue) -> Self {
+        ConditionalContent{
+            condition: Box::new(cond),
+            content_true,
+            content_false: StaticContent::new(),
+            current: None
+        }
+    }
+}
+
+impl <T: Data, ContentTrue, ContentFalse> ConditionalContent<T, ContentTrue, ContentFalse>{
+    pub fn new_if_else(cond: impl Fn(&T, &Env)->bool + 'static, content_true: ContentTrue, content_false: ContentFalse) -> Self {
+        ConditionalContent{
+            condition: Box::new(cond),
+            content_true,
+            content_false,
+            current: None
+        }
+    }
+}
+
+
+impl <T: Data, ContentTrue: FlexContent<T>, ContentFalse: FlexContent<T>> FlexContent<T> for ConditionalContent<T, ContentTrue, ContentFalse> {
+    fn content_added(&mut self, data: &T, env: &Env) {
+        self.current = Some((*self.condition)(data, env));
+    }
+
+    fn update(&mut self, old_data: &T, data: &T, env: &Env) {
+        if !old_data.same(data){
+            self.content_added(data, env)
+        }
+    }
+
+    fn add_child_widget(&mut self, cw: ChildWidget<T>) -> bool {
+        false
+    }
+
+    fn child_mut(&mut self, idx: usize) -> Option<&mut ChildWidget<T>> {
+        if let Some(cond) = self.current{
+            if cond {
+                self.content_true.child_mut(idx)
+            }else {
+                self.content_false.child_mut(idx)
+            }
+        }else{
+            None
+        }
+    }
+
+    fn last_child(&self) -> Option<&ChildWidget<T>> {
+        if let Some(cond) = self.current{
+            if cond {
+                self.content_true.last_child()
+            }else {
+                self.content_false.last_child()
+            }
+        }else{
+            None
+        }
+    }
+
+    fn len(&self) -> usize {
+        if let Some(cond) = self.current{
+            if cond {
+                self.content_true.len()
+            }else {
+                self.content_false.len()
+            }
+        }else{
+            0
+        }
+    }
+}
 
 pub struct ChildWidget<T> {
     widget: WidgetPod<T, Box<dyn Widget<T>>>,
@@ -343,7 +506,7 @@ struct Spacer {
 /// [`Flex`]: struct.Flex.html
 /// [`with_flex_child`]: struct.Flex.html#method.with_flex_child
 /// [`add_flex_child`]: struct.Flex.html#method.add_flex_child
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct FlexParams {
     flex: f64,
     alignment: Option<CrossAxisAlignment>,
@@ -537,8 +700,8 @@ impl<T: Data> Flex<T> {
         }
     }
 
-    pub fn for_axis(axis: Axis) -> Self{
-        Self::for_axis_content(axis, StaticFlexContent::new())
+    pub fn for_axis(axis: Axis) -> Self {
+        Self::for_axis_content(axis, StaticContent::new())
     }
 
     /// Create a new horizontal stack.
@@ -595,7 +758,10 @@ impl<T: Data> Flex<T> {
     ///
     /// Convenient for assembling a group of widgets in a single expression.
     pub fn with_child(mut self, child: impl Widget<T> + 'static) -> Self {
-        let params = child.info(FLEX_PARAMS).cloned().unwrap_or(FlexParams::new(0., None));
+        let params = child
+            .info(FLEX_PARAMS)
+            .cloned()
+            .unwrap_or(FlexParams::new(0., None));
         self.add_flex_child(child, params);
         self
     }
@@ -758,36 +924,43 @@ impl<T: Data> Flex<T> {
         };
         self.add_flex_child(child, flex);
     }
-
 }
 
 impl<T: Data> Widget<T> for Flex<T> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             child.widget.event(ctx, event, data, env);
         });
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &T, env: &Env) {
-        if let LifeCycle::WidgetAdded = event{
+        if let LifeCycle::WidgetAdded = event {
             self.content.content_added(data, env);
         }
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             child.widget.lifecycle(ctx, event, data, env);
         })
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, old_data: &T, data: &T, env: &Env) {
         self.content.update(old_data, data, env);
-
-        self.content.for_each_child(|child|{
-            child.widget.update(ctx, data, env);
+        ctx.children_changed();
+        self.content.for_each_child(|child| {
+            if child.widget.is_initialized() {
+                child.widget.update(ctx, data, env);
+            } else {
+                ctx.children_changed()
+            }
         })
     }
 
     fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &T, env: &Env) -> Size {
         bc.debug_check("Flex");
-        let Flex{direction, cross_alignment, ..} = *self;
+        let Flex {
+            direction,
+            cross_alignment,
+            ..
+        } = *self;
         // we loosen our constraints when passing to children.
         let loosened_bc = bc.loosen();
 
@@ -801,7 +974,7 @@ impl<T: Data> Widget<T> for Flex<T> {
         // Measure non-flex children.
         let mut major_non_flex = 0.0;
 
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             any_use_baseline &= child.params.alignment == Some(CrossAxisAlignment::Baseline);
 
             if child.params.flex == 0.0 {
@@ -828,21 +1001,21 @@ impl<T: Data> Widget<T> for Flex<T> {
         let remaining = (total_major - major_non_flex).max(0.0);
         let mut remainder: f64 = 0.0;
         let mut flex_sum: f64 = 0.0;
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             flex_sum += child.params.flex;
         });
         let mut major_flex: f64 = 0.0;
 
         // Measure flex children.
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             if child.params.flex != 0.0 {
                 let desired_major = remaining * child.params.flex / flex_sum + remainder;
                 let actual_major = desired_major.round();
                 remainder = desired_major - actual_major;
                 let min_major = 0.0;
 
-                let child_bc = direction
-                    .constraints(&loosened_bc, min_major, actual_major);
+                let child_bc = direction.constraints(&loosened_bc, min_major, actual_major);
+
                 let child_size = child.widget.layout(ctx, &child_bc, data, env);
                 let baseline_offset = child.widget.baseline_offset();
 
@@ -873,7 +1046,7 @@ impl<T: Data> Widget<T> for Flex<T> {
 
         let mut major = spacing.next().unwrap_or(0.);
         let mut child_paint_rect = Rect::ZERO;
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             let child_size = child.widget.layout_rect().size();
             let alignment = child.params.alignment.unwrap_or(cross_alignment);
             let child_minor_offset = match alignment {
@@ -941,7 +1114,7 @@ impl<T: Data> Widget<T> for Flex<T> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &T, env: &Env) {
-        self.content.for_each_child(|child|{
+        self.content.for_each_child(|child| {
             child.widget.paint(ctx, data, env);
         });
 
