@@ -199,6 +199,9 @@ pub trait Widget<T> {
         std::any::type_name::<Self>()
     }
 
+    /// Get a reference to an augmentation of the given type.
+    /// This is implemented in terms of Any in order to maintain object safety.
+    /// User code should use augmentation on WidgetExt.
     #[allow(unused_variables)]
     fn augmentation_raw(&self, type_id: TypeId) -> Option<&dyn Any> {
         None
@@ -267,5 +270,9 @@ impl<T> Widget<T> for Box<dyn Widget<T>> {
 
     fn type_name(&self) -> &'static str {
         self.deref().type_name()
+    }
+
+    fn augmentation_raw(&self, type_id: TypeId) -> Option<&dyn Any> {
+        self.deref().augmentation_raw(type_id)
     }
 }

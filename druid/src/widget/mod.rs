@@ -20,6 +20,7 @@ mod widget_wrapper;
 
 mod added;
 mod align;
+mod augmented;
 mod button;
 mod checkbox;
 mod click;
@@ -59,8 +60,6 @@ mod view_switcher;
 #[allow(clippy::module_inception)]
 mod widget;
 mod widget_ext;
-mod with_info;
-
 
 pub use self::image::Image;
 pub use added::Added;
@@ -69,16 +68,13 @@ pub use button::Button;
 pub use checkbox::Checkbox;
 pub use click::Click;
 pub use clip_box::{ClipBox, Viewport};
-pub use content::{Content, ContentExt, ForEachContent, StaticContent, ConditionalContent };
 pub use common::FillStrat;
 pub use container::Container;
+pub use content::{ConditionalContent, Content, ContentExt, ForEachContent, StaticContent};
 pub use controller::{Controller, ControllerHost};
 pub use either::Either;
 pub use env_scope::EnvScope;
-pub use flex::{
-    Axis, CrossAxisAlignment, Flex, FlexParams,
-    MainAxisAlignment,
-};
+pub use flex::{Axis, CrossAxisAlignment, Flex, FlexParams, MainAxisAlignment};
 pub use identity_wrapper::IdentityWrapper;
 pub use label::{Label, LabelText, LineBreaking, RawLabel};
 pub use lens_wrap::LensWrap;
@@ -107,7 +103,7 @@ pub use widget::{Widget, WidgetId};
 pub use widget_ext::WidgetExt;
 pub use widget_wrapper::WidgetWrapper;
 
-pub use with_info::Augmented;
+pub use augmented::Augmented;
 
 /// The types required to implement a `Widget`.
 ///

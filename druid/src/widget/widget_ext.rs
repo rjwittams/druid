@@ -16,9 +16,10 @@
 
 use super::invalidation::DebugInvalidation;
 use super::{
-    Added, Align, BackgroundBrush, Click, Container, Controller, ControllerHost, EnvScope,
-    IdentityWrapper, LensWrap, Padding, Parse, SizedBox, WidgetId, FlexParams, Augmented
+    Added, Align, Augmented, BackgroundBrush, Click, Container, Controller, ControllerHost,
+    EnvScope, FlexParams, IdentityWrapper, LensWrap, Padding, Parse, SizedBox, WidgetId,
 };
+use crate::widget::StaticContent;
 use crate::{
     Color, Data, Env, EventCtx, Insets, KeyOrValue, Lens, LifeCycleCtx, UnitPoint, Widget,
 };
@@ -264,16 +265,26 @@ pub trait WidgetExt<T: Data>: Widget<T> + Sized + 'static {
         Box::new(self)
     }
 
+    /// Get augmented data from this widget if any of the appropriate type is present
     fn augmentation<Aug: 'static>(&self) -> Option<&Aug> {
-        self.augmentation_raw(TypeId::of::<Aug>()).and_then(Any::downcast_ref)
+        self.augmentation_raw(TypeId::of::<Aug>())
+            .and_then(Any::downcast_ref)
     }
 
+    /// Augment this widget with the provided data.
     fn augment<Aug: 'static>(self, info: impl Into<Aug>) -> Augmented<Self, Aug> {
         Augmented::new(self, info.into())
     }
 
+    /// Augment this widget with the provided flex params. This will be used if the widget is
+    /// used as part of a Flex's content
     fn flex(self, flex: impl Into<FlexParams>) -> Augmented<Self, FlexParams> {
         self.augment(flex)
+    }
+
+    /// Treat this widget as static Content, so it can be provided to a container or composed with other content.
+    fn content<Aug: Clone + Default + 'static>(self) -> StaticContent<T, Aug> {
+        StaticContent::of(self)
     }
 }
 

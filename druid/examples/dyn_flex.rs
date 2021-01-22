@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use druid::im::Vector;
+use druid::lens::Index;
 use druid::widget::prelude::*;
 use druid::widget::{
-    Axis, Checkbox, ConditionalContent, Flex, ContentExt, ForEachContent, Label, StaticContent,
-    Stepper,
+    Axis, Button, Checkbox, ConditionalContent, CrossAxisAlignment, Flex, ForEachContent, Label,
+    MainAxisAlignment, StaticContent, Stepper, Tabs,
 };
 use druid::{AppLauncher, Color, Data, Lens, LensExt, WidgetExt, WindowDesc};
 
@@ -23,6 +25,7 @@ use druid::{AppLauncher, Color, Data, Lens, LensExt, WidgetExt, WindowDesc};
 struct DynFlexState {
     show_header: bool,
     max: usize,
+    items: Vector<String>,
 }
 
 pub fn main() {
@@ -32,6 +35,10 @@ pub fn main() {
     let initial_state: DynFlexState = DynFlexState {
         show_header: true,
         max: 5,
+        items: ["Apple", "Orange", "Grape"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
     };
     AppLauncher::with_window(main_window)
         .use_simple_logger()
@@ -40,6 +47,12 @@ pub fn main() {
 }
 
 fn build_root_widget() -> impl Widget<DynFlexState> {
+    Tabs::new()
+        .with_tab("List", list())
+        .with_tab("Reorder", list_reorder())
+}
+
+fn list() -> impl Widget<DynFlexState> {
     Flex::column()
         .with_child(
             Flex::row()
@@ -66,29 +79,63 @@ fn build_root_widget() -> impl Widget<DynFlexState> {
                 ConditionalContent::new_if(
                     |data: &DynFlexState, _| data.show_header,
                     StaticContent::of(
-                            Label::new("Header")
-                                .expand()
-                                .border(Color::WHITE, 1.0)
-                                .flex(0.5),
-                        )
-                )
-                .then(ForEachContent::new(
+                        Label::new("Header")
+                            .expand()
+                            .border(Color::WHITE, 1.0)
+                            .flex(0.5),
+                    ),
+                ) + ForEachContent::new(
                     |hs: &DynFlexState, _| 1..=hs.max,
                     |_, _, num| {
                         Label::new(format!("Label {}", num))
                             .expand()
                             .border(Color::WHITE, 1.0)
-                            .flex(1. / ((*num % 3 + 1) as f64))
+                            .flex(1. / ((num % 3 + 1) as f64))
                     },
-                ))
-                .then(StaticContent::of(
-                    Label::new("Footer")
-                        .expand()
-                        .border(Color::WHITE, 1.0)
-                        .flex(0.5),
-                )),
+                ) + Label::new("Footer")
+                    .expand()
+                    .border(Color::WHITE, 1.0)
+                    .flex(0.5)
+                    .content(),
             )
             .fix_size(250.0, 500.0)
             .border(Color::WHITE, 2.0),
         )
+}
+
+fn list_reorder() -> impl Widget<DynFlexState> {
+    Flex::for_axis_content(
+        Axis::Vertical,
+        ForEachContent::new(
+            |hs: &DynFlexState, _| 0..hs.items.len(),
+            |_, _, idx| {
+                Flex::for_axis_content(
+                    Axis::Horizontal,
+                    Button::new("Up")
+                        .on_click(move |_, items: &mut Vector<String>, _| {
+                            if idx > 0 {
+                                items.swap(idx, idx - 1)
+                            }
+                        })
+                        .content()
+                        + Button::new("Down")
+                            .on_click(move |_, items: &mut Vector<String>, _| {
+                                if idx < items.len() - 1 {
+                                    items.swap(idx, idx + 1)
+                                }
+                            })
+                            .content()
+                        + Label::new(move |hs: &String, _: &Env| format!("Item {} {}", idx, hs))
+                            .lens(Index::new(idx))
+                            .content(),
+                )
+                .main_axis_alignment(MainAxisAlignment::Start)
+                .fix_height(40.)
+                .lens(DynFlexState::items)
+            },
+        ),
+    )
+    .cross_axis_alignment(CrossAxisAlignment::Start)
+    .fix_size(250.0, 500.0)
+    .border(Color::WHITE, 2.0)
 }

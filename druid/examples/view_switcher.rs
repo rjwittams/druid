@@ -14,9 +14,7 @@
 
 //! This example demonstrates the `ViewSwitcher` widget
 
-use druid::widget::{
-    Axis, Button, Flex, ForEachContent, Label, Split, TextBox, ViewSwitcher, FLEX_PARAMS,
-};
+use druid::widget::{Axis, Button, Flex, ForEachContent, Label, Split, TextBox, ViewSwitcher};
 use druid::{AppLauncher, Data, Env, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
 
 #[derive(Clone, Data, Lens)]
@@ -111,8 +109,8 @@ fn make_ui() -> impl Widget<AppState> {
             6 => Box::new(Flex::for_axis_content(
                 Axis::Vertical,
                 ForEachContent::new(
-                    |data, env| vec![1, 2, 3],
-                    |data, env, k| Label::new(format!("idx: {}", k)).flex(1.5),
+                    |_, _| vec![1, 2, 3],
+                    |_, _, k| Label::new(format!("idx: {}", k)).flex(1.5),
                 ),
             )),
             _ => Box::new(Label::new("Unknown").center()),

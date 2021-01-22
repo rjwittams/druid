@@ -89,6 +89,11 @@ name = "image"
 required-features = ["image", "png"]
 
 [[example]]
+name = "dyn_flex"
+required-features = ["im"]
+
+
+[[example]]
 name = "invalidation"
 required-features = ["im"]
 

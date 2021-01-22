@@ -1,17 +1,16 @@
 use crate::widget::prelude::*;
 use std::any::{Any, TypeId};
 
+/// A widget augmented with additional data (often used by its parent).
 pub struct Augmented<W, Aug> {
     widget: W,
     augment: Aug,
 }
 
 impl<W, Aug> Augmented<W, Aug> {
+    /// Create an Augmented widget
     pub fn new(widget: W, augment: Aug) -> Self {
-        Augmented {
-            widget,
-            augment,
-        }
+        Augmented { widget, augment }
     }
 }
 
@@ -36,10 +35,14 @@ impl<T, W: Widget<T>, Aug: 'static> Widget<T> for Augmented<W, Aug> {
         self.widget.paint(ctx, data, env)
     }
 
+    fn id(&self) -> Option<WidgetId> {
+        self.widget.id()
+    }
+
     fn augmentation_raw(&self, type_id: TypeId) -> Option<&dyn Any> {
         if TypeId::of::<Aug>() == type_id {
             Some(&self.augment)
-        }else{
+        } else {
             self.widget.augmentation_raw(type_id)
         }
     }
