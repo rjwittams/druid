@@ -720,7 +720,7 @@ impl<TP: TabsPolicy> ScopePolicy for TabsScopePolicy<TP> {
     type State = TabsState<TP>;
     type Transfer = LensScopeTransfer<tabs_state_derived_lenses::inner, Self::In, Self::State>;
 
-    fn create(self, inner: &Self::In) -> (Self::State, Self::Transfer) {
+    fn create(self, inner: &Self::In, _env: &Env) -> (Self::State, Self::Transfer) {
         (
             TabsState::new(inner.clone(), self.selected, self.tabs_from_data),
             LensScopeTransfer::new(Self::State::inner),

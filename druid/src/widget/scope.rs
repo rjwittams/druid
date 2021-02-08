@@ -22,7 +22,7 @@ pub trait ScopePolicy {
     ///
     /// This consumes the policy, so non-cloneable items can make their way
     /// into the state this way.
-    fn create(self, inner: &Self::In) -> (Self::State, Self::Transfer);
+    fn create(self, inner: &Self::In, env: &Env) -> (Self::State, Self::Transfer);
 }
 
 /// A `ScopeTransfer` knows how to synchronise input data with its counterpart
@@ -40,7 +40,7 @@ pub trait ScopeTransfer {
     type State: Data;
 
     /// Replace the input we have within our State with a new one from outside
-    fn read_input(&self, state: &mut Self::State, inner: &Self::In);
+    fn read_input(&self, state: &mut Self::State, inner: &Self::In, env: &Env);
     /// Take the modifications we have made and write them back
     /// to our input.
     fn write_back_input(&self, state: &Self::State, inner: &mut Self::In);
@@ -83,7 +83,7 @@ impl<F: FnOnce(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer> ScopeP
     type State = Transfer::State;
     type Transfer = Transfer;
 
-    fn create(self, inner: &Self::In) -> (Self::State, Self::Transfer) {
+    fn create(self, inner: &Self::In, _env: &Env) -> (Self::State, Self::Transfer) {
         let state = (self.make_state)(inner.clone());
         (state, self.transfer)
     }
@@ -112,7 +112,7 @@ impl<L: Lens<State, In>, In: Data, State: Data> ScopeTransfer for LensScopeTrans
     type In = In;
     type State = State;
 
-    fn read_input(&self, state: &mut State, data: &In) {
+    fn read_input(&self, state: &mut State, data: &In, _env: &Env) {
         self.lens.with_mut(state, |inner| {
             if !inner.same(&data) {
                 *inner = data.clone()
@@ -217,13 +217,14 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
     fn with_state<V>(
         &mut self,
         data: &SP::In,
+        env: &Env,
         mut f: impl FnMut(&mut SP::State, &mut WidgetPod<SP::State, W>) -> V,
     ) -> V {
         match &mut self.content {
             ScopeContent::Policy { policy } => {
                 // We know that the policy is a Some - it is an option to allow
                 // us to take ownership before replacing the content.
-                let (mut state, policy) = policy.take().unwrap().create(data);
+                let (mut state, policy) = policy.take().unwrap().create(data, env);
                 let v = f(&mut state, &mut self.inner);
                 self.content = ScopeContent::Transfer {
                     state,
@@ -235,7 +236,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
                 ref mut state,
                 transfer,
             } => {
-                transfer.read_input(state, data);
+                transfer.read_input(state, data, env);
                 f(state, &mut self.inner)
             }
         }
@@ -271,17 +272,21 @@ impl<In: Data, State: Data, F: Fn(In) -> State, L: Lens<State, In>, W: Widget<St
 
 impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SP::In, env: &Env) {
-        self.with_state(data, |state, inner| inner.event(ctx, event, state, env));
+        self.with_state(data, env, |state, inner| {
+            inner.event(ctx, event, state, env)
+        });
         self.write_back_input(data);
         ctx.request_update()
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SP::In, env: &Env) {
-        self.with_state(data, |state, inner| inner.lifecycle(ctx, event, state, env));
+        self.with_state(data, env, |state, inner| {
+            inner.lifecycle(ctx, event, state, env)
+        });
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &SP::In, data: &SP::In, env: &Env) {
-        self.with_state(data, |state, inner| inner.update(ctx, state, env));
+        self.with_state(data, env, |state, inner| inner.update(ctx, state, env));
     }
 
     fn layout(
@@ -291,7 +296,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
         data: &SP::In,
         env: &Env,
     ) -> Size {
-        self.with_state(data, |state, inner| {
+        self.with_state(data, env, |state, inner| {
             let size = inner.layout(ctx, bc, state, env);
             inner.set_origin(ctx, state, env, Point::ORIGIN);
             size
@@ -299,7 +304,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &SP::In, env: &Env) {
-        self.with_state(data, |state, inner| inner.paint_raw(ctx, state, env));
+        self.with_state(data, env, |state, inner| inner.paint_raw(ctx, state, env));
     }
 }
 
