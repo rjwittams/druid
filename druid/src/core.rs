@@ -48,7 +48,7 @@ pub(crate) type CommandQueue = VecDeque<Command>;
 /// [`update`]: trait.Widget.html#tymethod.update
 pub struct WidgetPod<T, W> {
     state: WidgetState,
-    old_data: Option<T>,
+    pub(crate) old_data: Option<T>,
     env: Option<Env>,
     inner: W,
     // stashed layout so we don't recompute this when debugging
@@ -1025,16 +1025,19 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             for (_, host) in &self.state.sub_window_hosts {
                 let update = SubWindowUpdate {
                     data: if data_changed {
+                        log::info!("SUB_WINDOW_PARENT_TO_HOST data {:?}", std::any::type_name::<T>() );
                         Some(Box::new((*data).clone()))
                     } else {
                         None
                     },
                     env: if ctx.env_changed() {
+                        log::info!("SUB_WINDOW_PARENT_TO_HOST env");
                         Some(env.clone())
                     } else {
                         None
                     },
                 };
+
                 let command = Command::new(SUB_WINDOW_PARENT_TO_HOST, update, *host);
                 ctx.submit_command(command);
             }

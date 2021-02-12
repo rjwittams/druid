@@ -40,10 +40,12 @@ pub trait ScopeTransfer {
     type State: Data;
 
     /// Replace the input we have within our State with a new one from outside
-    fn read_input(&self, state: &mut Self::State, inner: &Self::In, env: &Env);
+    fn read_input(&self, state: &mut Self::State, input: &Self::In, env: &Env);
     /// Take the modifications we have made and write them back
     /// to our input.
-    fn write_back_input(&self, state: &Self::State, inner: &mut Self::In);
+    fn write_back_input(&self, state: &Self::State, input: &mut Self::In);
+
+    fn update_computed(&self, old_state: &Self::State, state: &mut Self::State, env: &Env) -> bool;
 }
 
 /// A default implementation of [`ScopePolicy`] that takes a function and a transfer.
@@ -83,8 +85,8 @@ impl<F: FnOnce(Transfer::In) -> Transfer::State, Transfer: ScopeTransfer> ScopeP
     type State = Transfer::State;
     type Transfer = Transfer;
 
-    fn create(self, inner: &Self::In, _env: &Env) -> (Self::State, Self::Transfer) {
-        let state = (self.make_state)(inner.clone());
+    fn create(self, input: &Self::In, _env: &Env) -> (Self::State, Self::Transfer) {
+        let state = (self.make_state)(input.clone());
         (state, self.transfer)
     }
 }
@@ -113,19 +115,23 @@ impl<L: Lens<State, In>, In: Data, State: Data> ScopeTransfer for LensScopeTrans
     type State = State;
 
     fn read_input(&self, state: &mut State, data: &In, _env: &Env) {
-        self.lens.with_mut(state, |inner| {
-            if !inner.same(&data) {
-                *inner = data.clone()
+        self.lens.with_mut(state, |embedded_input| {
+            if !embedded_input.same(&data) {
+                *embedded_input = data.clone()
             }
         });
     }
 
     fn write_back_input(&self, state: &State, data: &mut In) {
-        self.lens.with(state, |inner| {
-            if !inner.same(&data) {
-                *data = inner.clone();
+        self.lens.with(state, |embedded_input| {
+            if !embedded_input.same(&data) {
+                *data = embedded_input.clone();
             }
         });
+    }
+
+    fn update_computed(&self, _old_state: &Self::State, _state: &mut Self::State, _env: &Env) -> bool {
+        false
     }
 }
 
@@ -214,7 +220,54 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
         }
     }
 
+    pub fn state(&self) -> Option<&SP::State> {
+        if let ScopeContent::Transfer { ref state, .. } = &self.content {
+            Some(state)
+        } else {
+            None
+        }
+    }
+
+    pub fn state_mut(&mut self) -> Option<&mut SP::State> {
+        if let ScopeContent::Transfer { ref mut state, .. } = &mut self.content {
+            Some(state)
+        } else {
+            None
+        }
+    }
+
     fn with_state<V>(
+        &mut self,
+        is_update: bool,
+        data: &SP::In,
+        env: &Env,
+        mut f: impl FnMut(&SP::State, &mut WidgetPod<SP::State, W>) -> V,
+    ) -> V {
+        match &mut self.content {
+            ScopeContent::Policy { policy } => {
+                // We know that the policy is a Some - it is an option to allow
+                // us to take ownership before replacing the content.
+                let (state, transfer) = policy.take().unwrap().create(data, env);
+                let v = f(&state, &mut self.inner);
+                self.content = ScopeContent::Transfer { state, transfer };
+                v
+            }
+            ScopeContent::Transfer {
+                ref mut state,
+                transfer,
+            } => {
+                if is_update {
+                    transfer.read_input(state, data, env);
+                    if let Some(old_state) = &self.inner.old_data {
+                        transfer.update_computed(old_state, state, env);
+                    }
+                }
+                f(state, &mut self.inner)
+            }
+        }
+    }
+
+    fn with_state_mut<V>(
         &mut self,
         data: &SP::In,
         env: &Env,
@@ -224,28 +277,33 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
             ScopeContent::Policy { policy } => {
                 // We know that the policy is a Some - it is an option to allow
                 // us to take ownership before replacing the content.
-                let (mut state, policy) = policy.take().unwrap().create(data, env);
+                let (mut state, transfer) = policy.take().unwrap().create(data, env);
                 let v = f(&mut state, &mut self.inner);
-                self.content = ScopeContent::Transfer {
-                    state,
-                    transfer: policy,
-                };
+                self.content = ScopeContent::Transfer { state, transfer };
                 v
             }
             ScopeContent::Transfer {
                 ref mut state,
-                transfer,
+                transfer: _,
             } => {
-                transfer.read_input(state, data, env);
                 f(state, &mut self.inner)
             }
         }
     }
 
-    fn write_back_input(&mut self, data: &mut SP::In) {
+    fn update_computed_and_write_back(&mut self, data: &mut SP::In, _env: &Env) -> bool {
+        let inner = &mut self.inner;
+
         if let ScopeContent::Transfer { state, transfer } = &mut self.content {
-            transfer.write_back_input(state, data)
+            if let Some(old_state) = &inner.old_data {
+                if !old_state.same(state) {
+                    //transfer.update_computed(old_state, state, env);
+                    transfer.write_back_input(state, data);
+                    return true
+                }
+            }
         }
+        false
     }
 }
 
@@ -272,21 +330,23 @@ impl<In: Data, State: Data, F: Fn(In) -> State, L: Lens<State, In>, W: Widget<St
 
 impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SP::In, env: &Env) {
-        self.with_state(data, env, |state, inner| {
-            inner.event(ctx, event, state, env)
+        self.with_state_mut(data, env, |state, inner| {
+            inner.event(ctx, event, state, env);
         });
-        self.write_back_input(data);
-        ctx.request_update()
+
+        if self.update_computed_and_write_back(data, env) {
+            ctx.request_update()
+        }
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SP::In, env: &Env) {
-        self.with_state(data, env, |state, inner| {
+        self.with_state(false, data, env, |state, inner| {
             inner.lifecycle(ctx, event, state, env)
         });
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &SP::In, data: &SP::In, env: &Env) {
-        self.with_state(data, env, |state, inner| inner.update(ctx, state, env));
+        self.with_state(true, data, env, |state, inner| inner.update(ctx, state, env));
     }
 
     fn layout(
@@ -296,7 +356,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
         data: &SP::In,
         env: &Env,
     ) -> Size {
-        self.with_state(data, env, |state, inner| {
+        self.with_state(false, data, env, |state, inner| {
             let size = inner.layout(ctx, bc, state, env);
             inner.set_origin(ctx, state, env, Point::ORIGIN);
             size
@@ -304,7 +364,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &SP::In, env: &Env) {
-        self.with_state(data, env, |state, inner| inner.paint_raw(ctx, state, env));
+        self.with_state(false, data, env, |state, inner| inner.paint_raw(ctx, state, env));
     }
 }
 

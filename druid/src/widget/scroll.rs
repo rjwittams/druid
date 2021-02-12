@@ -90,6 +90,10 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         self.clip.viewport_origin().to_vec2()
     }
 
+    pub fn viewport_rect(&self) -> Rect {
+        self.clip.viewport_rect()
+    }
+
     /// Scroll by `delta` units.
     ///
     /// Returns `true` if the scroll offset has changed.

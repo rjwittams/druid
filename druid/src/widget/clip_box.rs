@@ -258,6 +258,10 @@ impl<T, W: Widget<T>> ClipBox<T, W> {
         }
     }
 
+    pub fn viewport_rect(&self) -> Rect {
+        self.port.rect
+    }
+
     /// Returns the origin of the viewport rectangle.
     pub fn viewport_origin(&self) -> Point {
         self.port.rect.origin()
