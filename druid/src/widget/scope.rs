@@ -130,7 +130,12 @@ impl<L: Lens<State, In>, In: Data, State: Data> ScopeTransfer for LensScopeTrans
         });
     }
 
-    fn update_computed(&self, _old_state: &Self::State, _state: &mut Self::State, _env: &Env) -> bool {
+    fn update_computed(
+        &self,
+        _old_state: &Self::State,
+        _state: &mut Self::State,
+        _env: &Env,
+    ) -> bool {
         false
     }
 }
