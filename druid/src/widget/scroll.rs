@@ -90,6 +90,7 @@ impl<T, W: Widget<T>> Scroll<T, W> {
         self.clip.viewport_origin().to_vec2()
     }
 
+    /// Returns the current view port rect.
     pub fn viewport_rect(&self) -> Rect {
         self.clip.viewport_rect()
     }

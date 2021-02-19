@@ -196,7 +196,7 @@ pub use app::{AppLauncher, WindowConfig, WindowDesc, WindowSizePolicy};
 pub use app_delegate::{AppDelegate, DelegateCtx};
 pub use box_constraints::BoxConstraints;
 pub use command::{sys as commands, Command, Notification, Selector, SingleUse, Target};
-pub use contexts::{EventCtx, LayoutCtx, LifeCycleCtx, PaintCtx, UpdateCtx};
+pub use contexts::{EventCtx, LayoutCtx, LifeCycleCtx, PaintCtx, UpdateCtx, CommandCtx, AnyCtx, RequestCtx, LaidOutCtx};
 pub use data::Data;
 pub use dialog::FileDialogOptions;
 pub use env::{Env, Key, KeyOrValue, Value, ValueType, ValueTypeError};

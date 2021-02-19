@@ -45,6 +45,18 @@ macro_rules! impl_context_method {
     };
 }
 
+
+macro_rules! impl_context_trait{
+    ($tr:ty => $ty:ty,  { $($method:item)+ } ) => {
+        impl $tr for $ty { $($method)+ }
+    };
+    ($tr:ty => $ty:ty, $($more:ty),+, { $($method:item)+ } ) => {
+        impl_context_trait!($tr => $ty, { $($method)+ });
+        impl_context_trait!($tr => $($more),+, { $($method)+ });
+    };
+}
+
+
 /// Static state that is shared between most contexts.
 pub(crate) struct ContextState<'a> {
     pub(crate) command_queue: &'a mut CommandQueue,
@@ -166,6 +178,41 @@ impl_context_method!(
     }
 );
 
+pub trait AnyCtx{
+    /// get the `WidgetId` of the current widget.
+    fn widget_id(&self) -> WidgetId;
+
+    /// Returns a reference to the current `WindowHandle`.
+    fn window(&self) -> &WindowHandle;
+
+    /// Get the `WindowId` of the current window.
+    fn window_id(&self) -> WindowId;
+
+    /// Get an object which can create text layouts.
+    fn text(&mut self) -> &mut PietText;
+}
+
+impl_context_trait!(
+   AnyCtx => EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>,PaintCtx<'_, '_, '_>, LayoutCtx<'_, '_>,
+   {
+        fn widget_id(&self) -> WidgetId {
+            Self::widget_id(self)
+        }
+
+        fn window(&self) -> &WindowHandle {
+            Self::window(self)
+        }
+
+        fn window_id(&self) -> WindowId {
+            Self::window_id(self)
+        }
+
+        fn text(&mut self) -> &mut PietText {
+            Self::text(self)
+        }
+   }
+);
+
 // methods on everyone but layoutctx
 impl_context_method!(
     EventCtx<'_, '_>,
@@ -275,6 +322,59 @@ impl_context_method!(
         }
     }
 );
+
+/// A generic trait for contexts that are already laid out - i.e not LayoutCtx
+pub trait LaidOutCtx {
+    /// See ['size']
+    ///
+    /// ['size']: EventCtx::size
+    fn size(&self) -> Size;
+    fn window_origin(&self) -> Point;
+    fn to_window(&self, widget_point: Point) -> Point;
+    fn to_screen(&self, widget_point: Point) -> Point;
+    fn is_hot(&self) -> bool;
+    fn is_active(&self) -> bool;
+    fn is_focused(&self) -> bool;
+    fn has_focus(&self) -> bool;
+}
+
+impl_context_trait!(
+   LaidOutCtx => EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>,PaintCtx<'_, '_, '_>,
+   {
+        fn size(&self) -> Size{
+            Self::size(self)
+        }
+
+        fn window_origin(&self) -> Point{
+            Self::window_origin(self)
+        }
+
+        fn to_window(&self, widget_point: Point) -> Point{
+            Self::to_window(self, widget_point)
+        }
+
+        fn to_screen(&self, widget_point: Point) -> Point{
+            Self::to_screen(self, widget_point)
+        }
+
+        fn is_hot(&self) -> bool{
+            Self::is_hot(self)
+        }
+
+        fn is_active(&self) -> bool{
+            Self::is_active(self)
+        }
+
+        fn is_focused(&self) -> bool{
+            Self::is_focused(self)
+        }
+
+        fn has_focus(&self) -> bool{
+            Self::has_focus(self)
+        }
+   }
+);
+
 
 impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, {
     /// Set the cursor icon.
@@ -399,6 +499,55 @@ impl_context_method!(EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, 
     }
 });
 
+pub trait RequestCtx {
+    fn request_paint(&mut self);
+    fn request_paint_rect(&mut self, rect: Rect);
+    fn request_layout(&mut self);
+    fn request_anim_frame(&mut self);
+    fn children_changed(&mut self);
+    fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>);
+    fn new_sub_window<W: Widget<U> + 'static, U: Data>(
+        &mut self,
+        window_config: WindowConfig,
+        widget: W,
+        data: U,
+        env: Env,
+    ) -> WindowId;
+}
+
+impl_context_trait!(
+    RequestCtx => EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>,
+    {
+        fn request_paint(&mut self){
+            Self::request_paint(self)
+        }
+        fn request_paint_rect(&mut self, rect: Rect){
+            Self::request_paint_rect(self, rect)
+        }
+        fn request_layout(&mut self){
+            Self::request_layout(self)
+        }
+        fn request_anim_frame(&mut self){
+            Self::request_anim_frame(self)
+        }
+        fn children_changed(&mut self){
+            Self::children_changed(self)
+        }
+        fn set_menu<T: Any>(&mut self, menu: MenuDesc<T>){
+            Self::set_menu(self, menu)
+        }
+        fn new_sub_window<W: Widget<U> + 'static, U: Data>(
+            &mut self,
+            window_config: WindowConfig,
+            widget: W,
+            data: U,
+            env: Env,
+        ) -> WindowId{
+            Self::new_sub_window(self, window_config, widget, data, env)
+        }
+    }
+);
+
 // methods on everyone but paintctx
 impl_context_method!(
     EventCtx<'_, '_>,
@@ -438,6 +587,30 @@ impl_context_method!(
         }
     }
 );
+
+pub trait CommandCtx {
+    fn submit_command(&mut self, cmd: impl Into<Command>);
+    fn get_external_handle(&self) -> ExtEventSink;
+    fn request_timer(&mut self, deadline: Duration) -> TimerToken;
+}
+
+impl_context_trait!(
+    CommandCtx => EventCtx<'_, '_>, UpdateCtx<'_, '_>, LifeCycleCtx<'_, '_>, LayoutCtx<'_, '_>,
+    {
+        fn submit_command(&mut self, cmd: impl Into<Command>) {
+            Self::submit_command(self, cmd)
+        }
+
+        fn get_external_handle(&self) -> ExtEventSink {
+            Self::get_external_handle(self)
+        }
+
+        fn request_timer(&mut self, deadline: Duration) -> TimerToken {
+            Self::request_timer(self, deadline)
+        }
+    }
+);
+
 
 impl EventCtx<'_, '_> {
     /// Submit a [`Notification`].

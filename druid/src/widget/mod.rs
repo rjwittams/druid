@@ -81,7 +81,9 @@ pub use painter::{BackgroundBrush, Painter};
 pub use parse::Parse;
 pub use progress_bar::ProgressBar;
 pub use radio::{Radio, RadioGroup};
-pub use scope::{DefaultScopePolicy, LensScopeTransfer, Scope, ScopePolicy, ScopeTransfer};
+pub use scope::{
+    DefaultScopePolicy, IsolatedScopePolicy, LensScopeTransfer, Scope, ScopePolicy, ScopeTransfer,
+};
 pub use scroll::Scroll;
 pub use sized_box::SizedBox;
 pub use slider::Slider;

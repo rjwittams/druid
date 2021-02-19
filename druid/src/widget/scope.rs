@@ -45,6 +45,7 @@ pub trait ScopeTransfer {
     /// to our input.
     fn write_back_input(&self, state: &Self::State, input: &mut Self::In);
 
+    /// Update any computed properties that have been invalidated by changes in the state.
     fn update_computed(&self, old_state: &Self::State, state: &mut Self::State, env: &Env) -> bool;
 }
 
@@ -107,6 +108,51 @@ impl<L: Lens<State, In>, In, State> LensScopeTransfer<L, In, State> {
             phantom_in: PhantomData::default(),
             phantom_state: PhantomData::default(),
         }
+    }
+}
+
+/// A scope policy that is provided with some state on construction,
+/// and does not synchronise it with external app data.
+pub struct IsolatedScopePolicy<In, State> {
+    state: Option<State>,
+    phantom_i: PhantomData<*const In>,
+}
+
+impl<In, State> IsolatedScopePolicy<In, State> {
+    /// Create an IsolatedScopePolicy with the provided data
+    pub fn new(state: State) -> Self {
+        IsolatedScopePolicy {
+            state: state.into(),
+            phantom_i: PhantomData,
+        }
+    }
+}
+
+impl<In: Data, State: Data> ScopePolicy for IsolatedScopePolicy<In, State> {
+    type In = In;
+    type State = State;
+    type Transfer = Self;
+
+    fn create(mut self, _inner: &Self::In, _env: &Env) -> (Self::State, Self::Transfer) {
+        (self.state.take().unwrap(), self)
+    }
+}
+
+impl<In: Data, State: Data> ScopeTransfer for IsolatedScopePolicy<In, State> {
+    type In = In;
+    type State = State;
+
+    fn read_input(&self, _state: &mut Self::State, _input: &Self::In, _env: &Env) {}
+
+    fn write_back_input(&self, _state: &Self::State, _input: &mut Self::In) {}
+
+    fn update_computed(
+        &self,
+        _old_state: &Self::State,
+        _state: &mut Self::State,
+        _env: &Env,
+    ) -> bool {
+        false
     }
 }
 
@@ -225,6 +271,8 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
         }
     }
 
+    /// This allows you to access the content of the Scopes state from
+    /// outside the widget.
     pub fn state(&self) -> Option<&SP::State> {
         if let ScopeContent::Transfer { ref state, .. } = &self.content {
             Some(state)
@@ -233,6 +281,8 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
         }
     }
 
+    /// This allows you to mutably access the content of the Scopes state from
+    /// outside the widget.
     pub fn state_mut(&mut self) -> Option<&mut SP::State> {
         if let ScopeContent::Transfer { ref mut state, .. } = &mut self.content {
             Some(state)
@@ -290,9 +340,7 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
             ScopeContent::Transfer {
                 ref mut state,
                 transfer: _,
-            } => {
-                f(state, &mut self.inner)
-            }
+            } => f(state, &mut self.inner),
         }
     }
 
@@ -304,11 +352,11 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Scope<SP, W> {
                 if !old_state.same(state) {
                     //transfer.update_computed(old_state, state, env);
                     transfer.write_back_input(state, data);
-                    return true
+                    return true;
                 }
             }
         }
-        false
+        true
     }
 }
 
@@ -333,15 +381,21 @@ impl<In: Data, State: Data, F: Fn(In) -> State, L: Lens<State, In>, W: Widget<St
     }
 }
 
+impl<In: Data, State: Data, W: Widget<State>> Scope<IsolatedScopePolicy<In, State>, W> {
+    /// Create a scope from some static data. It will not synchronize with its surroundings
+    pub fn isolate(state: State, widget: W) -> Self {
+        Scope::new(IsolatedScopePolicy::new(state), widget)
+    }
+}
+
 impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut SP::In, env: &Env) {
         self.with_state_mut(data, env, |state, inner| {
             inner.event(ctx, event, state, env);
         });
 
-        if self.update_computed_and_write_back(data, env) {
-            ctx.request_update()
-        }
+        self.update_computed_and_write_back(data, env);
+        ctx.request_update()
     }
 
     fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &SP::In, env: &Env) {
@@ -351,7 +405,9 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     }
 
     fn update(&mut self, ctx: &mut UpdateCtx, _old_data: &SP::In, data: &SP::In, env: &Env) {
-        self.with_state(true, data, env, |state, inner| inner.update(ctx, state, env));
+        self.with_state(true, data, env, |state, inner| {
+            inner.update(ctx, state, env)
+        });
     }
 
     fn layout(
@@ -369,7 +425,9 @@ impl<SP: ScopePolicy, W: Widget<SP::State>> Widget<SP::In> for Scope<SP, W> {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &SP::In, env: &Env) {
-        self.with_state(false, data, env, |state, inner| inner.paint_raw(ctx, state, env));
+        self.with_state(false, data, env, |state, inner| {
+            inner.paint_raw(ctx, state, env)
+        });
     }
 }
 
