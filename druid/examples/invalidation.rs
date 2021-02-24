@@ -144,4 +144,8 @@ impl Widget<Vector<Circle>> for CircleView {
             }
         });
     }
+
+    fn post_render(&mut self) {
+
+    }
 }

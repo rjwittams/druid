@@ -31,6 +31,8 @@ use crate::scale::Scale;
 use piet_common::PietText;
 #[cfg(feature = "raw-win-handle")]
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use std::fmt::{Debug, Formatter};
+use std::fmt;
 
 /// A token that uniquely identifies a running timer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
@@ -144,7 +146,7 @@ pub enum WindowState {
 
 /// A handle to a platform window object.
 #[derive(Clone, Default)]
-pub struct WindowHandle(platform::WindowHandle);
+pub struct WindowHandle(pub(crate) platform::WindowHandle);
 
 impl WindowHandle {
     /// Make this window visible.
@@ -357,6 +359,23 @@ unsafe impl HasRawWindowHandle for WindowHandle {
 /// A builder type for creating new windows.
 pub struct WindowBuilder(platform::WindowBuilder);
 
+#[derive(Clone)]
+pub enum WindowParent{
+    Shell(WindowHandle),
+    #[cfg(feature = "raw-win-handle")]
+    Raw(RawWindowHandle)
+}
+
+impl Debug for WindowParent{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self{
+            Self::Shell(_)=>f.write_str("WindowParent::Shell"),
+            #[cfg(feature = "raw-win-handle")]
+            Self::Raw(_)=>f.write_str("WindowParent::Raw")
+        }
+    }
+}
+
 impl WindowBuilder {
     /// Create a new `WindowBuilder`.
     ///
@@ -436,8 +455,8 @@ impl WindowBuilder {
     }
 
     /// Sets the initial window parent. Advanced use only.
-    pub fn set_parent(&mut self, parent: &WindowHandle) {
-        self.0.set_parent(&parent.0);
+    pub fn set_parent(&mut self, parent: WindowParent) {
+        self.0.set_parent(parent);
     }
 
     /// Attempt to construct the platform window.

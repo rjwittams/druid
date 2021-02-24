@@ -16,7 +16,7 @@
 
 use crate::kurbo::Circle;
 use crate::widget::prelude::*;
-use crate::widget::{CrossAxisAlignment, Flex, Label, LabelText};
+use crate::widget::{Axis, CrossAxisAlignment, Flex, Label, LabelText};
 use crate::{theme, Data, LinearGradient, UnitPoint};
 
 const DEFAULT_RADIO_RADIUS: f64 = 7.0;
@@ -26,11 +26,20 @@ const INNER_CIRCLE_RADIUS: f64 = 2.0;
 pub struct RadioGroup;
 
 impl RadioGroup {
-    /// Given a vector of `(label_text, enum_variant)` tuples, create a group of Radio buttons
+
+    /// Given a vector of (label_text, enum_variant) tuples, create a group of Radio buttons
+    /// in a column
     pub fn new<T: Data + PartialEq>(
         variants: impl IntoIterator<Item = (impl Into<LabelText<T>> + 'static, T)>,
     ) -> impl Widget<T> {
-        let mut col = Flex::column().cross_axis_alignment(CrossAxisAlignment::Start);
+        Self::for_axis(Axis::Vertical, variants)
+    }
+    /// Given a vector of `(label_text, enum_variant)` tuples, create a group of Radio buttons
+    pub fn for_axis<T: Data + PartialEq>(
+        axis: Axis,
+        variants: impl IntoIterator<Item = (impl Into<LabelText<T>> + 'static, T)>,
+    ) -> impl Widget<T> {
+        let mut col = Flex::for_axis(axis).cross_axis_alignment(CrossAxisAlignment::Start);
         let mut is_first = true;
         for (label, variant) in variants.into_iter() {
             if !is_first {

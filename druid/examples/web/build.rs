@@ -24,6 +24,7 @@ const EXCEPTIONS: &[&str] = &[
     "async_event",       // the web backend doesn't currently support spawning threads.
     "blocking_function", // the web backend doesn't currently support spawning threads.
     "sub_window",
+    "wgpu_view"
 ];
 
 /// Create a platform specific link from `src` to the `dst` directory.

@@ -23,7 +23,7 @@ use crate::kurbo::{Point, Size};
 use crate::piet::Piet;
 use crate::shell::{
     Application, FileDialogToken, FileInfo, IdleToken, MouseEvent, Region, Scale, WinHandler,
-    WindowHandle,
+    WindowHandle, WindowParent
 };
 
 use crate::app::NativeWindowLayoutDesc;
@@ -965,7 +965,7 @@ impl<T: Data> AppState<T> {
 
         builder.set_title("<native child window>");
 
-        builder.set_parent(parent);
+        builder.set_parent(WindowParent::Shell(parent.clone()));
 
         let handle = builder.build()?;
         self.add_child_window(id, handle.clone(), parent_id);

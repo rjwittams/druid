@@ -99,9 +99,15 @@ impl Widget<AppState> for Rebuilder {
         self.inner.paint(ctx, data, env)
     }
 
+    fn post_render(&mut self) {
+
+    }
+
     fn id(&self) -> Option<WidgetId> {
         self.inner.id()
     }
+
+
 }
 
 fn make_control_row() -> impl Widget<AppState> {

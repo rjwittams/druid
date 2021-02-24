@@ -195,6 +195,8 @@ pub use crate::core::WidgetPod;
 pub use app::{
     AppLauncher, NativeWindowDesc, NativeWindowHandle, WindowConfig, WindowDesc, WindowSizePolicy,
 };
+#[cfg(feature = "embed")]
+pub use app::{EmbeddedApp};
 pub use app_delegate::{AppDelegate, DelegateCtx};
 pub use box_constraints::BoxConstraints;
 pub use command::{sys as commands, Command, Notification, Selector, SingleUse, Target};

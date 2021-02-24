@@ -379,4 +379,8 @@ impl<T: Data> Widget<T> for SquaresGrid<T> {
             widget.paint(ctx, data, env);
         }
     }
+
+    fn post_render(&mut self) {
+
+    }
 }

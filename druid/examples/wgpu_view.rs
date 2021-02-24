@@ -404,12 +404,12 @@ struct State {
 }
 
 pub fn main() {
-    let main_window = WindowDesc::new(ui_builder).title(
+    let main_window = WindowDesc::new(ui_builder()).title(
         LocalizedString::new("wgpu_view-demo-window-title").with_placeholder("wgpu integration"),
     ).window_size( (500., 500.) ) ;
     //let sub_window = WindowDesc::new(sub_ui_builder).set_parent(main_window);
     AppLauncher::with_window(main_window)
-        .use_simple_logger()
+        .use_env_tracing()
         .launch(State::default())
         .expect("launch failed");
 }

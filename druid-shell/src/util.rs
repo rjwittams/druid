@@ -32,6 +32,7 @@ fn current_thread_id() -> u64 {
 /// # Panics
 ///
 /// Panics when called from a non-main thread.
+#[allow(dead_code)]
 pub fn assert_main_thread() {
     let thread_id = current_thread_id();
     let main_thread_id = MAIN_THREAD_ID.load(Ordering::Acquire);

@@ -819,7 +819,9 @@ impl<T: Data> Widget<T> for Flex<T> {
 
     fn post_render(&mut self) {
         for child in &mut self.children {
-            child.widget.post_render();
+            if let Some(w) = child.widget_mut(){
+                w.post_render();
+            }
         }
     }
 }

@@ -22,7 +22,10 @@ use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
 use crate::{AppDelegate, Data, Env, LocalizedString, MenuDesc, Widget, WidgetId};
 
-use druid_shell::WindowState;
+use druid_shell::{WindowState, WindowParent};
+
+#[cfg(feature = "embed")]
+use raw_window_handle::RawWindowHandle;
 
 /// A function that modifies the initial environment.
 type EnvSetupFn<T> = dyn FnOnce(&mut Env, &T);
@@ -61,6 +64,7 @@ pub struct WindowConfig {
     pub(crate) show_titlebar: Option<bool>,
     pub(crate) level: Option<WindowLevel>,
     pub(crate) state: Option<WindowState>,
+    pub(crate) parent: Option<WindowParent>
 }
 
 /// A description of a window to be instantiated.
@@ -314,6 +318,45 @@ impl<T: Data> AppLauncher<T> {
         app.run(Some(Box::new(handler)));
         Ok(())
     }
+
+    /// Embed the first window of this launcher into the given RawWindowHandle
+    #[cfg(feature = "embed")]
+    pub fn launch_embedded(mut self, data:T, native_parent: RawWindowHandle)->Result<EmbeddedApp, PlatformError>{
+        let app = Application::try_global().ok_or(PlatformError::ApplicationAlreadyExists).or_else(|_|Application::new())?;
+        let mut env = self
+            .l10n_resources
+            .map(|it| Env::with_i10n(it.0, &it.1))
+            .unwrap_or_default();
+
+        if let Some(f) = self.env_setup.take() {
+            f(&mut env, &data);
+        }
+
+        let sink = self.ext_event_host.make_sink();
+        let mut state = AppState::new(
+            app.clone(),
+            data,
+            env,
+            self.delegate.take(),
+            self.ext_event_host,
+        );
+
+        let mut desc = self.windows.into_iter().next().unwrap();
+
+        desc.config.parent = Some(WindowParent::Raw(native_parent));
+        let window_res = desc.build_native(&mut state);
+        // We assume the window is shown by the embedder
+        window_res.map(move |window|EmbeddedApp{ window, sink })
+    }
+}
+
+/// An app that has been embedded into a provided raw window handle
+#[cfg(feature = "embed")]
+pub struct EmbeddedApp{
+    /// The druid shell window handle
+    pub window: WindowHandle,
+    /// The external event sink for the embedder to send commands to the app
+    pub sink: ExtEventSink
 }
 
 impl Default for WindowConfig {
@@ -328,6 +371,7 @@ impl Default for WindowConfig {
             transparent: None,
             level: None,
             state: None,
+            parent: None
         }
     }
 }
@@ -462,6 +506,10 @@ impl WindowConfig {
 
         if let Some(min_size) = self.min_size {
             builder.set_min_size(min_size);
+        }
+
+        if let Some(parent) = &self.parent{
+            builder.set_parent(parent.clone())
         }
     }
 

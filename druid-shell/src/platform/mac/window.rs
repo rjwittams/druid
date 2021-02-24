@@ -60,7 +60,7 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState};
+use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState, WindowParent};
 use crate::Error;
 
 #[allow(non_upper_case_globals)]
@@ -118,7 +118,7 @@ pub(crate) struct WindowBuilder {
     size: Size,
     min_size: Option<Size>,
     position: Option<Point>,
-    parent: Option<WindowHandle>,
+    parent: Option<WindowParent>,
     level: Option<WindowLevel>,
     window_state: Option<WindowState>,
     resizable: bool,
@@ -214,8 +214,8 @@ impl WindowBuilder {
         self.position = Some(position)
     }
 
-    pub fn set_parent(&mut self, parent: &WindowHandle) {
-        self.parent = Some(parent.clone());
+    pub fn set_parent(&mut self, parent: WindowParent) {
+        self.parent = Some(parent);
     }
 
     pub fn set_window_state(&mut self, state: WindowState) {
@@ -251,7 +251,16 @@ impl WindowBuilder {
             let rect = NSRect::new(origin, NSSize::new(self.size.width, self.size.height));
 
             let window: id = if let Some(parent) = self.parent.as_ref() {
-                let parentView: id = *parent.nsview.load();
+                let parentView = match parent{
+                    WindowParent::Shell(s) => *s.0.nsview.load(),
+                    #[cfg(feature = "raw-win-handle")]
+                    WindowParent::Raw(raw) => match raw {
+                        RawWindowHandle::MacOS(m) => m.ns_view as id,
+                        _=>panic!("Unknown raw window handle as parent")
+                    }
+                };
+
+                //let parentView: id = *parent.nsview.load();
                 let window: id = msg_send![parentView, window];
                 window
             } else {
