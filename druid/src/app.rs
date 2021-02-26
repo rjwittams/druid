@@ -322,7 +322,8 @@ impl<T: Data> AppLauncher<T> {
     /// Embed the first window of this launcher into the given RawWindowHandle
     #[cfg(feature = "embed")]
     pub fn launch_embedded(mut self, data:T, native_parent: RawWindowHandle)->Result<EmbeddedApp, PlatformError>{
-        let app = Application::try_global().ok_or(PlatformError::ApplicationAlreadyExists).or_else(|_|Application::new())?;
+        let app = Application::new().or_else(|_|Ok(Application::global()) as Result<_, PlatformError> )?;
+
         let mut env = self
             .l10n_resources
             .map(|it| Env::with_i10n(it.0, &it.1))
@@ -341,12 +342,14 @@ impl<T: Data> AppLauncher<T> {
             self.ext_event_host,
         );
 
-        let mut desc = self.windows.into_iter().next().unwrap();
-
-        desc.config.parent = Some(WindowParent::Raw(native_parent));
-        let window_res = desc.build_native(&mut state);
-        // We assume the window is shown by the embedder
-        window_res.map(move |window|EmbeddedApp{ window, sink })
+        if let Some(mut desc) = self.windows.into_iter().next() {
+            desc.config.parent = Some(WindowParent::Raw(native_parent));
+            let window_res = desc.build_native(&mut state);
+            // We assume the window is shown by the embedder
+            window_res.map(move |window| EmbeddedApp { window, sink })
+        }else{
+            Err(PlatformError::WindowDescNotPresent)
+        }
     }
 }
 

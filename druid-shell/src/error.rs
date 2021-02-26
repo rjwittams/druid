@@ -26,6 +26,8 @@ pub enum Error {
     ApplicationAlreadyExists,
     /// The window has already been destroyed.
     WindowDropped,
+    // A window desc is required for some operations like embedding into a native window
+    WindowDescNotPresent,
     /// Platform specific error.
     Platform(platform::Error),
     /// Other miscellaneous error.
@@ -39,6 +41,7 @@ impl fmt::Display for Error {
                 write!(f, "An application instance has already been created.")
             }
             Error::Platform(err) => fmt::Display::fmt(err, f),
+            Error::WindowDescNotPresent => write!(f, "This operation needs a WindowDesc to succeed"),
             Error::WindowDropped => write!(f, "The window has already been destroyed."),
             Error::Other(s) => write!(f, "{}", s),
         }
