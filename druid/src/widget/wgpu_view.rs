@@ -25,6 +25,7 @@
 
 use crate::widget::prelude::*;
 use crate::{Data, NativeWindowHandle};
+use crate::shell::Scalable;
 
 use log::{debug, info};
 
@@ -185,6 +186,8 @@ impl<T: Data> Widget<T> for WgpuView {
             ctx.request_paint();
         } else if let LifeCycle::Size(size) = event {
             if let Some(render_data) = &mut self.render_data {
+                let scale = ctx.window().get_scale().unwrap_or_default();
+                let size = size.to_px(scale);
                 render_data.sc_desc.width = std::cmp::max(1, size.width as u32);
                 render_data.sc_desc.height = std::cmp::max(1, size.height as u32);
                 self.renderer.resize(

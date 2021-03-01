@@ -77,7 +77,7 @@ use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
-use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowParent};
 
 /// The platform target DPI.
 ///
@@ -98,7 +98,7 @@ pub(crate) struct WindowBuilder {
     min_size: Option<Size>,
     position: Option<Point>,
     state: window::WindowState,
-    parent: Option<WindowRef>,
+    parent: Option<WindowParent>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -739,7 +739,26 @@ impl WndProc for MyWndProc {
                 }
                 let is_child = is_child;
 
-                if is_child {
+                // Only supported on Windows 10, Could remove this as the 8.1 version below also works on 10.
+                let scale_factor = if let Some(func) = OPTIONAL_FUNCTIONS.GetDpiForWindow {
+                    unsafe { func(hwnd) as f64 / SCALE_TARGET_DPI }
+                }
+                // Windows 8.1 Support
+                else if let Some(func) = OPTIONAL_FUNCTIONS.GetDpiForMonitor {
+                    unsafe {
+                        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                        let mut dpiX = 0;
+                        let mut dpiY = 0;
+                        func(monitor, MDT_EFFECTIVE_DPI, &mut dpiX, &mut dpiY);
+                        dpiX as f64 / SCALE_TARGET_DPI
+                    }
+                } else {
+                    1.0
+                };
+                let scale = Scale::new(scale_factor, scale_factor);
+                self.set_scale(scale);
+
+                if false {
                     // Native child window
                     if let Some(state) = self.state.borrow_mut().as_mut() {
                         let handle = self.handle.borrow().to_owned();
@@ -749,43 +768,25 @@ impl WndProc for MyWndProc {
                 } else {
                     // Native top-level window
 
-                    // Only supported on Windows 10, Could remove this as the 8.1 version below also works on 10.
-                    let scale_factor = if let Some(func) = OPTIONAL_FUNCTIONS.GetDpiForWindow {
-                        unsafe { func(hwnd) as f64 / SCALE_TARGET_DPI }
+                    if let Some(state) = self.handle.borrow().state.upgrade() {
+                        state.hwnd.set(hwnd);
                     }
-                    // Windows 8.1 Support
-                    else if let Some(func) = OPTIONAL_FUNCTIONS.GetDpiForMonitor {
-                        unsafe {
-                            let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-                            let mut dpiX = 0;
-                            let mut dpiY = 0;
-                            func(monitor, MDT_EFFECTIVE_DPI, &mut dpiX, &mut dpiY);
-                            dpiX as f64 / SCALE_TARGET_DPI
+                    if let Some(state) = self.state.borrow_mut().as_mut() {
+                        let dxgi_state = unsafe {
+                            create_dxgi_state(self.present_strategy, hwnd, self.is_transparent())
+                                .unwrap_or_else(|e| {
+                                    error!("Creating swapchain failed: {:?}", e);
+                                    None
+                                })
+                        };
+                        state.dxgi_state = dxgi_state;
+
+                        let handle = self.handle.borrow().to_owned();
+                        state.handler.connect(&handle.into());
+
+                        if let Err(e) = state.rebuild_render_target(&self.d2d_factory, scale) {
+                            error!("error building render target: {}", e);
                         }
-                    } else {
-                        1.0
-                    };
-                    let scale = Scale::new(scale_factor, scale_factor);
-                    self.set_scale(scale);
-
-                if let Some(state) = self.handle.borrow().state.upgrade() {
-                    state.hwnd.set(hwnd);
-                }
-                if let Some(state) = self.state.borrow_mut().as_mut() {
-                    let dxgi_state = unsafe {
-                        create_dxgi_state(self.present_strategy, hwnd, self.is_transparent())
-                            .unwrap_or_else(|e| {
-                                error!("Creating swapchain failed: {:?}", e);
-                                None
-                            })
-                    };
-                    state.dxgi_state = dxgi_state;
-
-                    let handle = self.handle.borrow().to_owned();
-                    state.handler.connect(&handle.into());
-
-                    if let Err(e) = state.rebuild_render_target(&self.d2d_factory, scale) {
-                        error!("error building render target: {}", e);
                     }
                 }
                 Some(0)
@@ -1009,26 +1010,26 @@ impl WndProc for MyWndProc {
                             DXGI_FORMAT_UNKNOWN,
                             0,
                         );
-                    }
-                    if SUCCEEDED(res) {
-                        if let Err(e) = s.rebuild_render_target(&self.d2d_factory, scale) {
-                            error!("error building render target: {}", e);
+                        if SUCCEEDED(res) {
+                            if let Err(e) = s.rebuild_render_target(&self.d2d_factory, scale) {
+                                error!("error building render target: {}", e);
+                            }
+                            s.render(
+                                &self.d2d_factory,
+                                &self.dwrite_factory,
+                                &size_dp.to_rect().into(),
+                            );
+                            let present_after = match self.present_strategy {
+                                PresentStrategy::Sequential => 1,
+                                _ => 0,
+                            };
+                            if let Some(ref mut dxgi_state) = s.dxgi_state {
+                                (*dxgi_state.swap_chain).Present(present_after, 0);
+                            }
+                            ValidateRect(hwnd, null_mut());
+                        } else {
+                            error!("ResizeBuffers failed: 0x{:x}", res);
                         }
-                        s.render(
-                            &self.d2d_factory,
-                            &self.dwrite_factory,
-                            &size_dp.to_rect().into(),
-                        );
-                        let present_after = match self.present_strategy {
-                            PresentStrategy::Sequential => 1,
-                            _ => 0,
-                        };
-                        if let Some(ref mut dxgi_state) = s.dxgi_state {
-                            (*dxgi_state.swap_chain).Present(present_after, 0);
-                        }
-                        ValidateRect(hwnd, null_mut());
-                    } else {
-                        error!("ResizeBuffers failed: 0x{:x}", res);
                     }
                     s.post_render();
                 })
@@ -1385,10 +1386,8 @@ impl WindowBuilder {
         warn!("WindowBuilder::set_level  is currently unimplemented for Windows platforms.");
     }
 
-    pub fn set_parent(&mut self, parent: &WindowHandle) {
-        self.parent = Some(WindowRef {
-            hwnd: parent.state.clone(),
-        });
+    pub fn set_parent(&mut self, parent: WindowParent) {
+        self.parent = Some(parent)
     }
 
     pub fn build(self) -> Result<WindowHandle, Error> {
@@ -1406,11 +1405,21 @@ impl WindowBuilder {
             };
 
             let (parent_hwnd, has_parent) = if let Some(parent) = self.parent {
-                if let Some(hwnd) = parent.hwnd.upgrade() {
-                    let hwnd: HWND = hwnd.hwnd.get();
-                    (hwnd, true)
-                } else {
-                    (0 as HWND, false)
+                match parent {
+                    WindowParent::Shell(handle) => {
+                        if let Some(state) = handle.0.state.upgrade() {
+                            let hwnd: HWND = state.hwnd.get();
+                            (hwnd, true)
+                        } else {
+                            (0 as HWND, false)
+                        }
+                    }
+                    WindowParent::Raw(raw) => {
+                        match raw{
+                            RawWindowHandle::Windows(windows_handle) => (windows_handle.hwnd as HWND, !windows_handle.hwnd.is_null()),
+                            _=>(0 as HWND, false)
+                        }
+                    }
                 }
             } else {
                 (0 as HWND, false)
@@ -1977,14 +1986,18 @@ impl WindowHandle {
     // Sets the position and/or size of a native (child) window in DP
     pub fn set_native_layout(&self, position: Option<Point>, size: Option<Size>) {
         if let Some(hwnd) = self.get_hwnd() {
-            unsafe {
-                if let Some(position) = position {
-                    let lparam: LPARAM = MAKELONG(position.x as u16, position.y as u16) as LPARAM;
-                    PostMessageW(hwnd, DS_SET_NATIVE_POSITION, 0, lparam);
-                }
-                if let Some(size) = size {
-                    let lparam: LPARAM = MAKELONG(size.width as u16, size.height as u16) as LPARAM;
-                    PostMessageW(hwnd, DS_SET_NATIVE_SIZE, 0, lparam);
+            if let Ok(scale) = self.get_scale() {
+                unsafe {
+                    if let Some(position) = position {
+                        let position = position.to_px(scale);
+                        let lparam: LPARAM = MAKELONG(position.x as u16, position.y as u16) as LPARAM;
+                        PostMessageW(hwnd, DS_SET_NATIVE_POSITION, 0, lparam);
+                    }
+                    if let Some(size) = size {
+                        let size = size.to_px(scale);
+                        let lparam: LPARAM = MAKELONG(size.width as u16, size.height as u16) as LPARAM;
+                        PostMessageW(hwnd, DS_SET_NATIVE_SIZE, 0, lparam);
+                    }
                 }
             }
         } else {
