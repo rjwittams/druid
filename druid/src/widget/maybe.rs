@@ -142,9 +142,7 @@ impl<T: Data> Widget<Option<T>> for Maybe<T> {
         };
     }
 
-    fn post_render(&mut self) {
-
-    }
+    fn post_render(&mut self) {}
 }
 
 impl<T> MaybeWidget<T> {

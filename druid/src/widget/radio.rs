@@ -26,7 +26,6 @@ const INNER_CIRCLE_RADIUS: f64 = 2.0;
 pub struct RadioGroup;
 
 impl RadioGroup {
-
     /// Given a vector of (label_text, enum_variant) tuples, create a group of Radio buttons
     /// in a column
     pub fn new<T: Data + PartialEq>(

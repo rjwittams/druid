@@ -14,9 +14,9 @@
 
 //! A slider widget.
 
+use super::Axis;
 use crate::kurbo::{Circle, Shape};
 use crate::widget::prelude::*;
-use super::Axis;
 use crate::{theme, LinearGradient, Point, Rect, UnitPoint};
 
 const TRACK_THICKNESS: f64 = 4.0;
@@ -37,7 +37,7 @@ pub struct Slider {
     main_offset: f64,
 }
 
-impl Default for Slider{
+impl Default for Slider {
     fn default() -> Self {
         Slider::new()
     }
@@ -77,10 +77,10 @@ impl Slider {
         knob_circle.winding(mouse_pos) > 0
     }
 
-    fn flip(&self, val: f64)->f64{
-        match self.axis{
+    fn flip(&self, val: f64) -> f64 {
+        match self.axis {
             Axis::Horizontal => val,
-            Axis::Vertical => 1. - val
+            Axis::Vertical => 1. - val,
         }
     }
 
@@ -106,23 +106,36 @@ impl Widget<f64> for Slider {
             Event::MouseDown(mouse) => {
                 ctx.set_active(true);
                 if self.knob_hit_test(knob_size, mouse.pos) {
-                    self.main_offset = self.axis.major_pos(self.knob_pos) - self.axis.major_pos(mouse.pos)
+                    self.main_offset =
+                        self.axis.major_pos(self.knob_pos) - self.axis.major_pos(mouse.pos)
                 } else {
                     self.main_offset = 0.;
-                    *data = self.calculate_value(self.axis.major_pos(mouse.pos), knob_size, slider_extent);
+                    *data = self.calculate_value(
+                        self.axis.major_pos(mouse.pos),
+                        knob_size,
+                        slider_extent,
+                    );
                 }
                 ctx.request_paint();
             }
             Event::MouseUp(mouse) => {
                 if ctx.is_active() {
                     ctx.set_active(false);
-                    *data = self.calculate_value(self.axis.major_pos(mouse.pos), knob_size, slider_extent);
+                    *data = self.calculate_value(
+                        self.axis.major_pos(mouse.pos),
+                        knob_size,
+                        slider_extent,
+                    );
                     ctx.request_paint();
                 }
             }
             Event::MouseMove(mouse) => {
                 if ctx.is_active() {
-                    *data = self.calculate_value(self.axis.major_pos(mouse.pos), knob_size, slider_extent);
+                    *data = self.calculate_value(
+                        self.axis.major_pos(mouse.pos),
+                        knob_size,
+                        slider_extent,
+                    );
                     ctx.request_paint();
                 }
                 if ctx.is_hot() {
@@ -147,8 +160,7 @@ impl Widget<f64> for Slider {
         bc.debug_check("Slider");
         let minor = env.get(theme::BASIC_WIDGET_HEIGHT);
         let major = env.get(theme::WIDE_WIDGET_WIDTH);
-        if let Axis::Horizontal = self.axis
-        {
+        if let Axis::Horizontal = self.axis {
             let baseline_offset = (minor / 2.0) - TRACK_THICKNESS;
             ctx.set_baseline_offset(baseline_offset);
         }
@@ -165,15 +177,17 @@ impl Widget<f64> for Slider {
         let axis = self.axis;
         //Paint the background
         let background_major = axis.major(rect.size()) - knob_size;
-        let background_origin: Point = axis.pack(knob_size / 2., (knob_size - TRACK_THICKNESS) / 2.).into();
+        let background_origin: Point = axis
+            .pack(knob_size / 2., (knob_size - TRACK_THICKNESS) / 2.)
+            .into();
         let background_size: Size = axis.pack(background_major, TRACK_THICKNESS).into();
         let background_rect = Rect::from_origin_size(background_origin, background_size)
             .inset(-BORDER_WIDTH / 2.)
             .to_rounded_rect(2.);
 
-        let (start, end) = match axis{
+        let (start, end) = match axis {
             Axis::Horizontal => (UnitPoint::TOP, UnitPoint::BOTTOM),
-            Axis::Vertical => (UnitPoint::LEFT, UnitPoint::RIGHT)
+            Axis::Vertical => (UnitPoint::LEFT, UnitPoint::RIGHT),
         };
 
         let background_gradient = LinearGradient::new(

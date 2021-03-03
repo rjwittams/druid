@@ -22,7 +22,7 @@ use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
 use crate::{AppDelegate, Data, Env, LocalizedString, MenuDesc, Widget, WidgetId};
 
-use druid_shell::{WindowState, WindowParent};
+use druid_shell::{WindowParent, WindowState};
 
 #[cfg(feature = "embed")]
 use raw_window_handle::RawWindowHandle;
@@ -64,7 +64,7 @@ pub struct WindowConfig {
     pub(crate) show_titlebar: Option<bool>,
     pub(crate) level: Option<WindowLevel>,
     pub(crate) state: Option<WindowState>,
-    pub(crate) parent: Option<WindowParent>
+    pub(crate) parent: Option<WindowParent>,
 }
 
 /// A description of a window to be instantiated.
@@ -321,8 +321,13 @@ impl<T: Data> AppLauncher<T> {
 
     /// Embed the first window of this launcher into the given RawWindowHandle
     #[cfg(feature = "embed")]
-    pub fn launch_embedded(mut self, data:T, native_parent: RawWindowHandle)->Result<EmbeddedApp, PlatformError>{
-        let app = Application::new().or_else(|_|Ok(Application::global()) as Result<_, PlatformError> )?;
+    pub fn launch_embedded(
+        mut self,
+        data: T,
+        native_parent: RawWindowHandle,
+    ) -> Result<EmbeddedApp, PlatformError> {
+        let app = Application::new()
+            .or_else(|_| Ok(Application::global()) as Result<_, PlatformError>)?;
 
         let mut env = self
             .l10n_resources
@@ -347,7 +352,7 @@ impl<T: Data> AppLauncher<T> {
             let window_res = desc.build_native(&mut state);
             // We assume the window is shown by the embedder
             window_res.map(move |window| EmbeddedApp { window, sink })
-        }else{
+        } else {
             Err(PlatformError::WindowDescNotPresent)
         }
     }
@@ -355,11 +360,11 @@ impl<T: Data> AppLauncher<T> {
 
 /// An app that has been embedded into a provided raw window handle
 #[cfg(feature = "embed")]
-pub struct EmbeddedApp{
+pub struct EmbeddedApp {
     /// The druid shell window handle
     pub window: WindowHandle,
     /// The external event sink for the embedder to send commands to the app
-    pub sink: ExtEventSink
+    pub sink: ExtEventSink,
 }
 
 impl Default for WindowConfig {
@@ -374,7 +379,7 @@ impl Default for WindowConfig {
             transparent: None,
             level: None,
             state: None,
-            parent: None
+            parent: None,
         }
     }
 }
@@ -511,7 +516,7 @@ impl WindowConfig {
             builder.set_min_size(min_size);
         }
 
-        if let Some(parent) = &self.parent{
+        if let Some(parent) = &self.parent {
             builder.set_parent(parent.clone())
         }
     }

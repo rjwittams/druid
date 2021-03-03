@@ -23,7 +23,7 @@ use crate::kurbo::{Point, Size};
 use crate::piet::Piet;
 use crate::shell::{
     Application, FileDialogToken, FileInfo, IdleToken, MouseEvent, Region, Scale, WinHandler,
-    WindowHandle, WindowParent
+    WindowHandle, WindowParent,
 };
 
 use crate::app::NativeWindowLayoutDesc;
@@ -297,8 +297,8 @@ impl<T: Data> Inner<T> {
                 self.root_menu = win.menu.take();
                 // If there are even no pending windows, we quit the run loop.
                 if self.windows.count() == 0 {
-                    #[cfg(any(target_os = "windows", feature = "x11"))]
-                    self.app.quit();
+                    //#[cfg(any(target_os = "windows", feature = "x11"))]
+                    //self.app.quit();
                 }
             }
         }

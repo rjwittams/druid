@@ -60,7 +60,9 @@ use crate::keyboard_types::KeyState;
 use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::Scale;
-use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowState, WindowParent};
+use crate::window::{
+    FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowParent, WindowState,
+};
 use crate::Error;
 
 #[allow(non_upper_case_globals)]
@@ -251,13 +253,13 @@ impl WindowBuilder {
             let rect = NSRect::new(origin, NSSize::new(self.size.width, self.size.height));
 
             let window: id = if let Some(parent) = self.parent.as_ref() {
-                let parentView = match parent{
+                let parentView = match parent {
                     WindowParent::Shell(s) => *s.0.nsview.load(),
                     #[cfg(feature = "raw-win-handle")]
                     WindowParent::Raw(raw) => match raw {
                         RawWindowHandle::MacOS(m) => m.ns_view as id,
-                        _=>panic!("Unknown raw window handle as parent")
-                    }
+                        _ => panic!("Unknown raw window handle as parent"),
+                    },
                 };
 
                 //let parentView: id = *parent.nsview.load();
@@ -807,7 +809,9 @@ fn run_deferred(this: &mut Object, view_state: &mut ViewState, op: DeferredOp) {
     match op {
         DeferredOp::SetSize(size) => set_size_deferred(this, view_state, size),
         DeferredOp::SetPosition(pos) => set_position_deferred(this, view_state, pos),
-        DeferredOp::SetNativeLayout(origin, size) => set_native_layout_deferred(this, view_state,origin, size),
+        DeferredOp::SetNativeLayout(origin, size) => {
+            set_native_layout_deferred(this, view_state, origin, size)
+        }
     }
 }
 
@@ -817,7 +821,6 @@ fn set_native_layout_deferred(
     position: Option<Point>,
     size: Option<Size>,
 ) {
-
     unsafe {
         let view = view_state.nsview.load();
 

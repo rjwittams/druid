@@ -77,7 +77,9 @@ use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
-use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowParent};
+use crate::window::{
+    FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel, WindowParent,
+};
 
 /// The platform target DPI.
 ///
@@ -215,7 +217,7 @@ pub struct WindowRef {
 /// by interior mutability, so we can handle reentrant calls.
 struct WindowState {
     hwnd: Cell<HWND>,
-    parent_hwnd: Option<Cell<HWND>>,
+    wants_d2d: bool,
     scale: Cell<Scale>,
     area: Cell<ScaledArea>,
     invalid: RefCell<Region>,
@@ -726,19 +728,9 @@ impl WndProc for MyWndProc {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> Option<LRESULT> {
-        //println!("wndproc msg: {}", msg);
+        //eprintln!("window_proc: msg {:#06x} wparam {} lparam {}", msg, wparam, lparam);
         match msg {
             WM_CREATE => {
-                let mut is_child = false;
-                if let Some(state) = self.handle.borrow().state.upgrade() {
-                    // Unlike hwnd, parent_hwnd is set directly before CreateWindow() so is already available.
-                    if let Some(_parent_hwnd) = &state.parent_hwnd {
-                        is_child = true;
-                    }
-                    state.hwnd.set(hwnd);
-                }
-                let is_child = is_child;
-
                 // Only supported on Windows 10, Could remove this as the 8.1 version below also works on 10.
                 let scale_factor = if let Some(func) = OPTIONAL_FUNCTIONS.GetDpiForWindow {
                     unsafe { func(hwnd) as f64 / SCALE_TARGET_DPI }
@@ -758,20 +750,22 @@ impl WndProc for MyWndProc {
                 let scale = Scale::new(scale_factor, scale_factor);
                 self.set_scale(scale);
 
-                if false {
-                    // Native child window
-                    if let Some(state) = self.state.borrow_mut().as_mut() {
+                let wants_d2d = if let Some(state) = self.handle.borrow().state.upgrade() {
+                    state.hwnd.set(hwnd);
+                    state.wants_d2d
+                } else {
+                    false
+                };
+
+                if let Some(state) = self.state.borrow_mut().as_mut() {
+                    if !wants_d2d {
+                        // Native child window
+
                         let handle = self.handle.borrow().to_owned();
                         // This is a HACK - will not connect anything, will only raise the NativeWindowConnected event.
                         state.handler.connect(&handle.into());
-                    }
-                } else {
-                    // Native top-level window
-
-                    if let Some(state) = self.handle.borrow().state.upgrade() {
-                        state.hwnd.set(hwnd);
-                    }
-                    if let Some(state) = self.state.borrow_mut().as_mut() {
+                    } else {
+                        // Native top-level window
                         let dxgi_state = unsafe {
                             create_dxgi_state(self.present_strategy, hwnd, self.is_transparent())
                                 .unwrap_or_else(|e| {
@@ -971,7 +965,16 @@ impl WndProc for MyWndProc {
             DS_SET_NATIVE_POSITION => unsafe {
                 let x = LOWORD(lparam as u32) as i32;
                 let y = HIWORD(lparam as u32) as i32;
-                SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+                SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    (x as f64 * self.scale().x()) as i32,
+                    (y as f64 * self.scale().y()) as i32,
+                    0,
+                    0,
+                    SWP_NOZORDER | SWP_NOSIZE,
+                );
+                self.handle.borrow().request_anim_frame();
                 Some(0)
             },
             DS_SET_NATIVE_SIZE => unsafe {
@@ -986,6 +989,7 @@ impl WndProc for MyWndProc {
                     (height as f64 * self.scale().y()) as i32,
                     SWP_NOZORDER | SWP_NOMOVE,
                 );
+                self.handle.borrow().request_anim_frame();
                 Some(0)
             },
             WM_SIZE => unsafe {
@@ -1263,7 +1267,13 @@ impl WndProc for MyWndProc {
                 .map(|_| 0),
             DS_REQUEST_DESTROY => {
                 unsafe {
-                    DestroyWindow(hwnd);
+                    if DestroyWindow(hwnd) == 0 {
+                        error!(
+                            "Failed to destroy native Win32 window: {:?} {}",
+                            hwnd,
+                            Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+                        );
+                    }
                 }
                 Some(0)
             }
@@ -1404,25 +1414,27 @@ impl WindowBuilder {
                 present_strategy: self.present_strategy,
             };
 
-            let (parent_hwnd, has_parent) = if let Some(parent) = self.parent {
+            let (parent_hwnd, has_parent, wants_d2d) = if let Some(parent) = self.parent {
                 match parent {
                     WindowParent::Shell(handle) => {
                         if let Some(state) = handle.0.state.upgrade() {
                             let hwnd: HWND = state.hwnd.get();
-                            (hwnd, true)
+                            (hwnd, true, false)
                         } else {
-                            (0 as HWND, false)
+                            (0 as HWND, false, true)
                         }
                     }
-                    WindowParent::Raw(raw) => {
-                        match raw{
-                            RawWindowHandle::Windows(windows_handle) => (windows_handle.hwnd as HWND, !windows_handle.hwnd.is_null()),
-                            _=>(0 as HWND, false)
-                        }
-                    }
+                    WindowParent::Raw(raw) => match raw {
+                        RawWindowHandle::Windows(windows_handle) => (
+                            windows_handle.hwnd as HWND,
+                            !windows_handle.hwnd.is_null(),
+                            true,
+                        ),
+                        _ => (0 as HWND, false, true),
+                    },
                 }
             } else {
-                (0 as HWND, false)
+                (0 as HWND, false, true)
             };
 
             let (pos_x, pos_y) = match self.position {
@@ -1470,11 +1482,7 @@ impl WindowBuilder {
             let window = WindowState {
                 // 'hwnd' is assigned in window_proc() on WM_CREATE
                 hwnd: Cell::new(0 as HWND),
-                parent_hwnd: if has_parent {
-                    Some(Cell::new(parent_hwnd))
-                } else {
-                    None
-                },
+                wants_d2d,
                 scale: Cell::new(scale),
                 area: Cell::new(area),
                 invalid: RefCell::new(Region::EMPTY),
@@ -1861,7 +1869,7 @@ impl WindowHandle {
                 // With the RDW_INTERNALPAINT flag, RedrawWindow causes a WM_PAINT message, but without
                 // invalidating anything. We do this because we won't know the final invalidated region
                 // until after calling prepare_paint.
-                if RedrawWindow(hwnd, null(), null_mut(), RDW_INTERNALPAINT) == 0 {
+                if RedrawWindow(hwnd, null(), null_mut(), RDW_INTERNALPAINT | RDW_INVALIDATE) == 0 {
                     warn!(
                         "RedrawWindow failed: {}",
                         Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
@@ -1986,18 +1994,14 @@ impl WindowHandle {
     // Sets the position and/or size of a native (child) window in DP
     pub fn set_native_layout(&self, position: Option<Point>, size: Option<Size>) {
         if let Some(hwnd) = self.get_hwnd() {
-            if let Ok(scale) = self.get_scale() {
-                unsafe {
-                    if let Some(position) = position {
-                        let position = position.to_px(scale);
-                        let lparam: LPARAM = MAKELONG(position.x as u16, position.y as u16) as LPARAM;
-                        PostMessageW(hwnd, DS_SET_NATIVE_POSITION, 0, lparam);
-                    }
-                    if let Some(size) = size {
-                        let size = size.to_px(scale);
-                        let lparam: LPARAM = MAKELONG(size.width as u16, size.height as u16) as LPARAM;
-                        PostMessageW(hwnd, DS_SET_NATIVE_SIZE, 0, lparam);
-                    }
+            unsafe {
+                if let Some(position) = position {
+                    let lparam: LPARAM = MAKELONG(position.x as u16, position.y as u16) as LPARAM;
+                    PostMessageW(hwnd, DS_SET_NATIVE_POSITION, 0, lparam);
+                }
+                if let Some(size) = size {
+                    let lparam: LPARAM = MAKELONG(size.width as u16, size.height as u16) as LPARAM;
+                    PostMessageW(hwnd, DS_SET_NATIVE_SIZE, 0, lparam);
                 }
             }
         } else {

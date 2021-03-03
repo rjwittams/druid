@@ -23,9 +23,10 @@
 
 #![cfg(feature = "wgpu_view")]
 
-use crate::widget::prelude::*;
-use crate::{Data, NativeWindowHandle};
 use crate::shell::Scalable;
+use crate::widget::prelude::*;
+use crate::InternalLifeCycle;
+use crate::{Data, NativeWindowHandle};
 
 use log::{debug, info};
 
@@ -123,7 +124,8 @@ impl WgpuView {
                 shader_validation: true,
             },
             None,
-        )).ok()?;
+        ))
+        .ok()?;
         debug!("Created WGPU device {:?} and queue {:?}", device, queue);
 
         let (pool, spawner) = {
@@ -185,6 +187,11 @@ impl<T: Data> Widget<T> for WgpuView {
         } else if let LifeCycle::HotChanged(_) = event {
             ctx.request_paint();
         } else if let LifeCycle::Size(size) = event {
+            if let Some(native_window) = &self.native_window {
+                native_window
+                    .0
+                    .set_native_layout(None, Some(*size));
+            }
             if let Some(render_data) = &mut self.render_data {
                 let scale = ctx.window().get_scale().unwrap_or_default();
                 let size = size.to_px(scale);
@@ -199,6 +206,13 @@ impl<T: Data> Widget<T> for WgpuView {
                     .device
                     .create_swap_chain(&render_data.surface, &render_data.sc_desc);
             }
+
+        } else if let LifeCycle::Internal(InternalLifeCycle::ParentWindowOrigin) = event{
+            if let Some(native_window) = &self.native_window {
+                native_window
+                    .0
+                    .set_native_layout(Some(ctx.window_origin()), None);
+            }
         }
     }
 
@@ -209,6 +223,29 @@ impl<T: Data> Widget<T> for WgpuView {
     }
 
     fn post_render(&mut self) {
+        // if let Some(render_data) = &mut self.render_data {
+        //     let frame = match render_data.swap_chain.get_current_frame() {
+        //         Ok(frame) => frame,
+        //         Err(_) => {
+        //             render_data.swap_chain = render_data
+        //                 .device
+        //                 .create_swap_chain(&render_data.surface, &render_data.sc_desc);
+        //             render_data
+        //                 .swap_chain
+        //                 .get_current_frame()
+        //                 .expect("Failed to acquire next swap chain texture!")
+        //         }
+        //     };
+        //     let device: &wgpu::Device = &render_data.device;
+        //     let queue: &wgpu::Queue = &render_data.queue;
+        //     self.renderer.render(&frame.output, device, queue);
+        // }
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, _data: &T, _env: &Env) {
+        // This widget does paint anything with the built-in Piet-based drawing pipeline.
+        // All rendering is done externally via wgpu in post_render(), after the Piet-based
+        // drawing has occurred.
         if let Some(render_data) = &mut self.render_data {
             let frame = match render_data.swap_chain.get_current_frame() {
                 Ok(frame) => frame,
@@ -225,17 +262,6 @@ impl<T: Data> Widget<T> for WgpuView {
             let device: &wgpu::Device = &render_data.device;
             let queue: &wgpu::Queue = &render_data.queue;
             self.renderer.render(&frame.output, device, queue);
-        }
-    }
-
-    fn paint(&mut self, ctx: &mut PaintCtx, _data: &T, _env: &Env) {
-        // This widget does paint anything with the built-in Piet-based drawing pipeline.
-        // All rendering is done externally via wgpu in post_render(), after the Piet-based
-        // drawing has occurred.
-        if let Some(native_window) = &self.native_window {
-            native_window
-                .0
-                .set_native_layout(Some(ctx.native_origin), Some(ctx.widget_state.size()));
         }
     }
 }

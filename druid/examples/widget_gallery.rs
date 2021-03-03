@@ -23,9 +23,9 @@ use druid::{
     AppLauncher, Color, Data, ImageBuf, Lens, Widget, WidgetExt, WidgetPod, WindowDesc,
 };
 
+use druid::widget::Axis;
 #[cfg(feature = "svg")]
 use druid::widget::{Svg, SvgData};
-use druid::widget::Axis;
 
 const XI_IMAGE: &[u8] = include_bytes!("assets/xi.image");
 
@@ -159,14 +159,15 @@ fn ui_builder() -> impl Widget<AppData> {
                         format!("{:3.0}%", data.progressbar * 100.0)
                     })),
                 "Slider",
-            )).with_child(label_widget(
-            Flex::column()
-                .with_child(Slider::for_axis(Axis::Vertical).lens(AppData::progressbar))
-                .with_spacer(4.0)
-                .with_child(Label::new(|data: &AppData, _: &_| {
-                    format!("{:3.0}%", data.progressbar * 100.0)
-                })),
-            "Slider",
+            ))
+            .with_child(label_widget(
+                Flex::column()
+                    .with_child(Slider::for_axis(Axis::Vertical).lens(AppData::progressbar))
+                    .with_spacer(4.0)
+                    .with_child(Label::new(|data: &AppData, _: &_| {
+                        format!("{:3.0}%", data.progressbar * 100.0)
+                    })),
+                "Slider",
             ))
             .with_child(label_widget(
                 Flex::row()
@@ -389,7 +390,5 @@ impl<T: Data> Widget<T> for SquaresGrid<T> {
         }
     }
 
-    fn post_render(&mut self) {
-
-    }
+    fn post_render(&mut self) {}
 }

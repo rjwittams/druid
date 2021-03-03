@@ -177,9 +177,7 @@ impl<T, W: Widget<Option<ValidationError>>> Widget<T> for ErrorController<W> {
         self.child.paint(ctx, &self.error, env);
     }
 
-    fn post_render(&mut self) {
-
-    }
+    fn post_render(&mut self) {}
 
     fn id(&self) -> Option<WidgetId> {
         Some(self.child.id())

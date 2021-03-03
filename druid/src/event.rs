@@ -14,7 +14,7 @@
 
 //! Events.
 
-use crate::kurbo::{Rect, Shape, Size, Vec2};
+use crate::kurbo::{Point, Rect, Shape, Size, Vec2};
 
 use druid_shell::{Clipboard, KeyEvent, TimerToken};
 
@@ -267,6 +267,11 @@ pub enum LifeCycle {
     /// [`Size`]: struct.Size.html
     /// [`Widget::layout`]: trait.Widget.html#tymethod.layout
     Size(Size),
+    // Called when the window origin changes.
+    //
+    // This will be called after Widget::layout if this widget has moved relative
+    // to its containing window.
+    WindowOrigin(Point),
     /// Called when the "hot" status changes.
     ///
     /// This will always be called _before_ the event that triggered it; that is,
@@ -410,7 +415,10 @@ impl LifeCycle {
         match self {
             LifeCycle::Internal(internal) => internal.should_propagate_to_hidden(),
             LifeCycle::WidgetAdded => true,
-            LifeCycle::Size(_) | LifeCycle::HotChanged(_) | LifeCycle::FocusChanged(_) => false,
+            LifeCycle::Size(_)
+            | LifeCycle::WindowOrigin(_)
+            | LifeCycle::HotChanged(_)
+            | LifeCycle::FocusChanged(_) => false,
         }
     }
 }

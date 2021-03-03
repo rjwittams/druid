@@ -31,8 +31,8 @@ use crate::scale::Scale;
 use piet_common::PietText;
 #[cfg(feature = "raw-win-handle")]
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
-use std::fmt::{Debug, Formatter};
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 
 /// A token that uniquely identifies a running timer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
@@ -360,18 +360,18 @@ unsafe impl HasRawWindowHandle for WindowHandle {
 pub struct WindowBuilder(platform::WindowBuilder);
 
 #[derive(Clone)]
-pub enum WindowParent{
+pub enum WindowParent {
     Shell(WindowHandle),
     #[cfg(feature = "raw-win-handle")]
-    Raw(RawWindowHandle)
+    Raw(RawWindowHandle),
 }
 
-impl Debug for WindowParent{
+impl Debug for WindowParent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self{
-            Self::Shell(_)=>f.write_str("WindowParent::Shell"),
+        match self {
+            Self::Shell(_) => f.write_str("WindowParent::Shell"),
             #[cfg(feature = "raw-win-handle")]
-            Self::Raw(_)=>f.write_str("WindowParent::Raw")
+            Self::Raw(_) => f.write_str("WindowParent::Raw"),
         }
     }
 }

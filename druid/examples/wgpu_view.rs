@@ -19,8 +19,8 @@
 
 use bytemuck::{Pod, Zeroable};
 use druid::widget::prelude::*;
-use druid::widget::{Align, Label, Split, WgpuRenderer, WgpuView};
-use druid::{AppLauncher, Data, LocalizedString, WindowDesc};
+use druid::widget::{Align, Flex, Label, Scroll, SizedBox, Split, Tabs, WgpuRenderer, WgpuView};
+use druid::{AppLauncher, Data, LocalizedString, WidgetExt, WindowDesc};
 use wgpu::util::DeviceExt;
 
 #[repr(C)]
@@ -404,9 +404,12 @@ struct State {
 }
 
 pub fn main() {
-    let main_window = WindowDesc::new(ui_builder()).title(
-        LocalizedString::new("wgpu_view-demo-window-title").with_placeholder("wgpu integration"),
-    ).window_size( (500., 500.) ) ;
+    let main_window = WindowDesc::new(ui_builder())
+        .title(
+            LocalizedString::new("wgpu_view-demo-window-title")
+                .with_placeholder("wgpu integration"),
+        )
+        .window_size((500., 500.));
     //let sub_window = WindowDesc::new(sub_ui_builder).set_parent(main_window);
     AppLauncher::with_window(main_window)
         .use_env_tracing()
@@ -419,7 +422,21 @@ fn ui_builder() -> impl Widget<State> {
         Align::centered(Label::new("Side toolbar here...")),
         Split::rows(
             Align::centered(Label::new("Top toolbar here...")),
-            WgpuView::new(ExampleRenderer::new()),
+            Tabs::new()
+                .with_tab(
+                    "Scroll",
+                    Scroll::new(
+                        Flex::column()
+                            .with_child(SizedBox::empty().height(1000.))
+                            .with_child(Label::new("Before wgpu"))
+                            .with_child(WgpuView::new(ExampleRenderer::new()).fix_height(300.).padding(20.) )
+                            .with_child(Label::new("After wgpu"))
+                            .with_child(SizedBox::empty().height(1000.)),
+                    )
+                    .vertical(),
+                )
+                //.with_tab("Plain", Label::new("Not a WGPU view"))
+                //.with_tab("WGPU", WgpuView::new(ExampleRenderer::new())),
         )
         .split_point(0.2)
         .draggable(true)

@@ -265,13 +265,23 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
     /// [`Size`]: struct.Size.html
     /// [`LifeCycle::Size`]: enum.LifeCycle.html#variant.Size
     pub fn set_origin(&mut self, ctx: &mut LayoutCtx, data: &T, env: &Env, origin: Point) {
+        let origin_changed = self.state.origin != origin;
         self.state.origin = origin;
         self.state.is_expecting_set_origin_call = false;
-        let layout_rect = self.layout_rect();
 
+        if origin_changed{
+            let origin_event = LifeCycle::WindowOrigin(self.state.window_origin());
+            let mut child_ctx = LifeCycleCtx{
+                widget_state: &mut self.state,
+                state: &mut ctx.state
+            };
+            self.inner.lifecycle(&mut child_ctx, &origin_event, data, env);
+        }
+
+        let layout_rect = self.layout_rect();
         // if the widget has moved, it may have moved under the mouse, in which
         // case we need to handle that.
-        if WidgetPod::set_hot_state(
+        let hot_changed = WidgetPod::set_hot_state(
             &mut self.inner,
             &mut self.state,
             ctx.state,
@@ -279,7 +289,9 @@ impl<T, W: Widget<T>> WidgetPod<T, W> {
             ctx.mouse_pos,
             data,
             env,
-        ) {
+        );
+
+        if hot_changed || origin_changed {
             ctx.widget_state.merge_up(&mut self.state);
         }
     }
@@ -438,8 +450,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             z_ops: Vec::new(),
             region: ctx.region.clone(),
             widget_state: &self.state,
-            depth: ctx.depth,
-            native_origin: ctx.native_origin,
+            depth: ctx.depth
         };
         self.inner.paint(&mut inner_ctx, data, env);
 
@@ -495,9 +506,7 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
             let mut visible = ctx.region().clone();
             visible.intersect_with(self.state.paint_rect());
             visible -= layout_origin;
-            ctx.native_origin += layout_origin;
             ctx.with_child_ctx(visible, |ctx| self.paint_raw(ctx, data, env));
-            ctx.native_origin -= layout_origin;
         });
     }
 
@@ -949,7 +958,11 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                     }
                 }
                 InternalLifeCycle::ParentWindowOrigin => {
-                    self.state.parent_window_origin = ctx.widget_state.window_origin();
+                    let parent_window_origin = ctx.widget_state.window_origin();
+                    if parent_window_origin != self.state.parent_window_origin {
+                        self.state.parent_window_origin = parent_window_origin;
+                        extra_event = Some(LifeCycle::WindowOrigin(self.state.window_origin()))
+                    }
                     true
                 }
                 #[cfg(test)]
@@ -989,7 +1002,11 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 // We are a descendant of a widget that received the Size event.
                 // This event was meant only for our parent, so don't recurse.
                 false
-            }
+            },
+            LifeCycle::WindowOrigin(_) => {
+                // Same reasoning as Size
+                false
+            },
             //NOTE: this is not sent here, but from the special set_hot_state method
             LifeCycle::HotChanged(_) => false,
             LifeCycle::FocusChanged(_) => {

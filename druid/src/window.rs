@@ -414,6 +414,10 @@ impl<T: Data> Window<T> {
             let full_size = (content_size.to_rect() + insets).size();
             if self.size != full_size {
                 self.size = full_size;
+                eprintln!(
+                    "ContentSized Setting size to {:?} ",
+                    (full_size, content_size, insets)
+                );
                 self.handle.set_size(full_size)
             }
         }
@@ -453,7 +457,6 @@ impl<T: Data> Window<T> {
             widget_state: &widget_state,
             z_ops: Vec::new(),
             region: invalid.clone(),
-            native_origin: Point::ORIGIN,
             depth: 0,
         };
 

@@ -41,7 +41,9 @@ impl fmt::Display for Error {
                 write!(f, "An application instance has already been created.")
             }
             Error::Platform(err) => fmt::Display::fmt(err, f),
-            Error::WindowDescNotPresent => write!(f, "This operation needs a WindowDesc to succeed"),
+            Error::WindowDescNotPresent => {
+                write!(f, "This operation needs a WindowDesc to succeed")
+            }
             Error::WindowDropped => write!(f, "The window has already been destroyed."),
             Error::Other(s) => write!(f, "{}", s),
         }
